@@ -1,6 +1,5 @@
 <template>
   <a-layout class="admin-layout">
-    <!-- Mobile overlay -->
     <div
       v-if="isMobile && !collapsed"
       class="mobile-overlay"
@@ -12,7 +11,7 @@
       :collapsible="true"
       :breakpoint="'lg'"
       :collapsed-width="60"
-      :width="220"
+      :width="230"
       class="admin-sider"
       :class="{ 'sider-mobile': isMobile }"
     >
@@ -22,6 +21,7 @@
         </div>
         <span v-if="!collapsed" class="logo-text">{{ siteName }}</span>
       </div>
+
       <a-menu
         :collapsed="collapsed"
         :selected-keys="selectedKeys"
@@ -30,12 +30,72 @@
         @menu-item-click="handleMenuItemClick"
         class="admin-menu"
       >
-        <a-menu-item v-for="item in menuItems" :key="item.path">
-          <iconify-icon :icon="item.icon" :size="18" />
-          <template #title>{{ item.title }}</template>
+        <a-menu-item key="/admin/dashboard">
+          <iconify-icon icon="arco:dashboard" :size="18" />
+          <template #title>仪表盘</template>
+        </a-menu-item>
+
+        <a-sub-menu key="product">
+          <template #title>
+            <iconify-icon icon="arco:apps" :size="18" />
+            <span>商品与运营</span>
+          </template>
+          <a-menu-item key="/admin/categories">
+            <iconify-icon icon="arco:menu" :size="16" />
+            <template #title>商品分类</template>
+          </a-menu-item>
+          <a-menu-item key="/admin/products">
+            <iconify-icon icon="arco:apps" :size="16" />
+            <template #title>商品管理</template>
+          </a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu key="order">
+          <template #title>
+            <iconify-icon icon="arco:file" :size="18" />
+            <span>卡密与订单</span>
+          </template>
+          <a-menu-item key="/admin/cards">
+            <iconify-icon icon="arco:file" :size="16" />
+            <template #title>卡密管理</template>
+          </a-menu-item>
+          <a-menu-item key="/admin/orders">
+            <iconify-icon icon="arco:order" :size="16" />
+            <template #title>订单管理</template>
+          </a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu key="pay">
+          <template #title>
+            <iconify-icon icon="arco:pay-circle" :size="18" />
+            <span>支付与通知</span>
+          </template>
+          <a-menu-item key="/admin/payments">
+            <iconify-icon icon="arco:pay-circle" :size="16" />
+            <template #title>支付接口</template>
+          </a-menu-item>
+          <a-menu-item key="/admin/emails">
+            <iconify-icon icon="arco:mail" :size="16" />
+            <template #title>邮件系统</template>
+          </a-menu-item>
+          <a-menu-item key="/admin/nodes">
+            <iconify-icon icon="arco:cloud" :size="16" />
+            <template #title>节点管理</template>
+          </a-menu-item>
+        </a-sub-menu>
+
+        <a-menu-item key="/admin/logs">
+          <iconify-icon icon="arco:file-one" :size="18" />
+          <template #title>日志系统</template>
+        </a-menu-item>
+
+        <a-menu-item key="/admin/settings">
+          <iconify-icon icon="arco:settings" :size="18" />
+          <template #title>系统设置</template>
         </a-menu-item>
       </a-menu>
     </a-layout-sider>
+
     <a-layout>
       <app-header
         v-model:collapsed="collapsed"
@@ -56,14 +116,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from './AppHeader.vue'
 
 const collapsed = ref(false)
 const route = useRoute()
 const router = useRouter()
-
 const isMobile = ref(false)
 
 const siteName = computed(() => {
@@ -75,28 +134,29 @@ const siteName = computed(() => {
   }
 })
 
-const menuItems = [
-  { path: '/admin/dashboard', title: '仪表盘', icon: 'arco:dashboard' },
-  { path: '/admin/categories', title: '商品分类', icon: 'arco:menu' },
-  { path: '/admin/products', title: '商品管理', icon: 'arco:apps' },
-  { path: '/admin/cards', title: '卡密管理', icon: 'arco:file' },
-  { path: '/admin/orders', title: '订单管理', icon: 'arco:order' },
-  { path: '/admin/payments', title: '支付接口', icon: 'arco:pay-circle' },
-  { path: '/admin/emails', title: '邮件系统', icon: 'arco:mail' },
-  { path: '/admin/nodes', title: '节点管理', icon: 'arco:cloud' },
-  { path: '/admin/logs', title: '日志系统', icon: 'arco:file-one' },
-  { path: '/admin/settings', title: '系统设置', icon: 'arco:settings' }
-]
-
 const selectedKeys = computed(() => [route.path])
-const openKeys = ref([route.path])
+
+const openKeys = ref(() => {
+  const path = route.path
+  const map = {
+    '/admin/dashboard': [],
+    '/admin/categories': ['product'],
+    '/admin/products': ['product'],
+    '/admin/cards': ['order'],
+    '/admin/orders': ['order'],
+    '/admin/payments': ['pay'],
+    '/admin/emails': ['pay'],
+    '/admin/nodes': ['pay'],
+    '/admin/logs': [],
+    '/admin/settings': []
+  }
+  return map[path] || []
+})
 
 const breadcrumb = computed(() => {
-  const matched = route.matched.filter(item => item.meta && item.meta.title)
-  return matched.map(item => ({
-    title: item.meta.title,
-    path: item.path
-  }))
+  return route.matched
+    .filter(item => item.meta && item.meta.title)
+    .map(item => ({ title: item.meta.title, path: item.path }))
 })
 
 const handleOpenChange = (keys) => {
@@ -105,10 +165,12 @@ const handleOpenChange = (keys) => {
 
 const handleMenuItemClick = (key) => {
   const path = typeof key === 'string' ? key : (Array.isArray(key) ? key[0] : key)
-  if (path && path !== route.path) {
-    router.push(path)
-    if (isMobile.value) {
-      collapsed.value = true
+  if (path && typeof path === 'string' && path.startsWith('/')) {
+    if (path !== route.path) {
+      router.push(path)
+      if (isMobile.value) {
+        collapsed.value = true
+      }
     }
   }
 }
@@ -119,6 +181,12 @@ const checkMobile = () => {
     collapsed.value = true
   }
 }
+
+watch(() => route.path, () => {
+  if (isMobile.value) {
+    collapsed.value = true
+  }
+})
 
 onMounted(() => {
   checkMobile()
@@ -163,7 +231,7 @@ onUnmounted(() => {
 }
 
 .logo {
-  height: 64px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -187,7 +255,7 @@ onUnmounted(() => {
 }
 
 .logo-text {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--color-text-1);
 }
@@ -195,7 +263,7 @@ onUnmounted(() => {
 .admin-menu {
   background: transparent;
   border-right: none;
-  padding: 12px 8px;
+  padding: 8px;
 }
 
 .admin-content {
@@ -224,7 +292,6 @@ onUnmounted(() => {
     height: auto;
     min-height: 100vh;
   }
-
   .content-wrapper {
     padding: 12px;
   }
@@ -235,7 +302,6 @@ onUnmounted(() => {
     height: auto;
     min-height: 100vh;
   }
-
   .content-wrapper {
     padding: 12px 10px;
   }
