@@ -1,0 +1,39 @@
+system:
+  site_name: "晨泽发卡"
+  site_desc: "专业发卡系统"
+  port: 12398
+  mode: release
+
+database:
+  driver: "mysql"
+  host: "localhost"
+  port: 3306
+  user: "root"
+  password: ""
+  dbname: "chenze_faka"
+  sqlite: ""
+
+jwt:
+  secret: "chenze-faka-secret-change-me"
+  expire_time: 72
+
+pay:
+  method: "alipay"
+  alipay_app_id: ""
+  alipay_private_key: ""
+  alipay_public_key: ""
+  wechat_app_id: ""
+  wechat_mch_id: ""
+  wechat_mch_key: ""
+
+license:
+  enabled: true
+  base_url: "https://auth.seanld.com"
+  app_key: ""
+  app_secret: ""
+  license_key: ""
+  domain: ""
+  server_ip: ""
+  cache_file: "license.cache"
+  interval: 3600
+  grace_period: 86400

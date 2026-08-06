@@ -1,0 +1,93 @@
+package database
+
+import (
+	"fmt"
+	"log"
+
+	"chenze-faka/internal/model"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+var DB *gorm.DB
+
+func Init(cfg *model.DatabaseConfig) error {
+	var err error
+
+	switch cfg.Driver {
+	case "sqlite":
+		DB, err = initSQLite(cfg)
+	default:
+		DB, err = initMySQL(cfg)
+	}
+
+	if err != nil {
+		DB = nil
+		return err
+	}
+
+	sqlDB, err := DB.DB()
+	if err != nil {
+		DB = nil
+		return err
+	}
+
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+
+	log.Printf("[DB] connected via %s", cfg.Driver)
+	return nil
+}
+
+func initMySQL(cfg *model.DatabaseConfig) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func initSQLite(cfg *model.DatabaseConfig) (*gorm.DB, error) {
+	path := cfg.SQLite
+	if path == "" {
+		path = "chenze_faka.db"
+	}
+
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func AutoMigrate() error {
+	if DB == nil {
+		return nil
+	}
+	return DB.AutoMigrate(
+		&model.User{},
+		&model.Product{},
+		&model.Card{},
+		&model.Order{},
+	)
+}
+
+func Close() {
+	if DB != nil {
+		sqlDB, err := DB.DB()
+		if err == nil {
+			sqlDB.Close()
+		}
+	}
+}
+
+func IsAvailable() bool {
+	return DB != nil
+}

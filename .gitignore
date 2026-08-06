@@ -1,0 +1,19 @@
+# 前端
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite/
+
+# 后端
+chenze_faka
+web/
+install.lock
+config.yaml
+*.exe
+*.test
+
+# 系统
+.DS_Store
+Thumbs.db
+*.swp
