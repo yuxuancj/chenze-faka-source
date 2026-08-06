@@ -218,18 +218,30 @@ const stepLabels = [
   { title: '完成安装', desc: '系统初始化' }
 ]
 
-const mysqlStatus = ref('未连接')
+const mysqlStatus = ref('检测中')
+const mysqlVersion = ref('')
+
+const checkMysqlVersion = (version) => {
+  if (!version) return { status: '异常', text: '未知版本' }
+  const match = version.match(/^(\d+)\.(\d+)/)
+  if (!match) return { status: '异常', text: version }
+  const major = parseInt(match[1], 10)
+  const minor = parseInt(match[2], 10)
+  if (major >= 8) return { status: '正常', text: version }
+  if (major === 5 && minor >= 7) return { status: '正常', text: version }
+  return { status: '异常', text: version }
+}
 
 const envItems = computed(() => [
   { label: '操作系统', value: 'Linux', status: '正常' },
   { label: 'Go版本', value: '1.21+', status: '正常' },
-  { label: 'MySQL', value: '5.7+ / 8.0+', status: mysqlStatus.value },
+  { label: 'MySQL', value: mysqlVersion.value || '5.7+ / 8.0+', status: mysqlStatus.value },
   { label: '内存', value: '2GB+', status: '正常' }
 ])
 
 const getTagColor = (status) => {
   if (status === '正常') return 'green'
-  if (status === '未连接' || status === '待配置') return 'orange'
+  if (status === '检测中') return 'orange'
   return 'red'
 }
 
@@ -296,17 +308,22 @@ const testDatabaseConnection = async () => {
     if (res.code === 0) {
       dbTestSuccess.value = true
       dbTestResult.value = { success: true, message: '数据库连接成功' }
-      mysqlStatus.value = '正常'
+      const ver = res.data?.version || ''
+      const result = checkMysqlVersion(ver)
+      mysqlVersion.value = result.text
+      mysqlStatus.value = result.status
       Message.success('数据库连接成功')
     } else {
       dbTestSuccess.value = false
       dbTestResult.value = { success: false, message: res.message || '数据库连接失败' }
+      mysqlVersion.value = ''
       mysqlStatus.value = '异常'
       Message.error(res.message || '数据库连接失败')
     }
   } catch (e) {
     dbTestSuccess.value = false
     dbTestResult.value = { success: false, message: e.message || '数据库连接失败' }
+    mysqlVersion.value = ''
     mysqlStatus.value = '异常'
     Message.error(e.message || '数据库连接失败，请检查账号密码是否正确')
   } finally {

@@ -7,11 +7,14 @@ dist/
 
 # 后端
 chenze_faka
+chenze-faka-new
 web/
 install.lock
 config.yaml
 *.exe
 *.test
+*.db
+uploads/
 
 # 系统
 .DS_Store
@@ -19,4 +22,3 @@ Thumbs.db
 *.swp
 license.secret
 license.cache
-license.secret

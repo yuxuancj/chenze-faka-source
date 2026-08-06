@@ -3,18 +3,23 @@ package service
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"strings"
 
 	"chenze-faka/internal/model"
+	"chenze-faka/internal/pkg/crypto"
 	"chenze-faka/internal/pkg/database"
 
 	"gorm.io/gorm"
 )
 
-type CardService struct{}
+type CardService struct {
+	encryptKey string
+}
 
 func NewCardService() *CardService {
-	return &CardService{}
+	key := "chenze_faka_card_encrypt_key_2024!!"
+	return &CardService{encryptKey: key}
 }
 
 type ImportCardsResult struct {
@@ -29,6 +34,14 @@ type CardListResult struct {
 	Total    int64        `json:"total"`
 	Page     int          `json:"page"`
 	PageSize int          `json:"page_size"`
+}
+
+func (s *CardService) encryptCardNo(cardNo string) (string, error) {
+	return crypto.AesEncrypt(cardNo, s.encryptKey)
+}
+
+func (s *CardService) decryptCardNo(encrypted string) (string, error) {
+	return crypto.AesDecrypt(encrypted, s.encryptKey)
 }
 
 func (s *CardService) ImportCards(productID uint, cardNos []string) (*ImportCardsResult, error) {
@@ -53,8 +66,15 @@ func (s *CardService) ImportCards(productID uint, cardNos []string) (*ImportCard
 			continue
 		}
 
+		encrypted, err := s.encryptCardNo(cardNo)
+		if err != nil {
+			result.Errors = append(result.Errors, "加密失败: "+cardNo)
+			result.Skipped++
+			continue
+		}
+
 		var existing model.Card
-		err := database.DB.Where("card_no = ?", cardNo).First(&existing).Error
+		err = database.DB.Where("card_no = ?", encrypted).First(&existing).Error
 		if err == nil {
 			result.Skipped++
 			continue
@@ -67,8 +87,8 @@ func (s *CardService) ImportCards(productID uint, cardNos []string) (*ImportCard
 
 		card := &model.Card{
 			ProductID: product.ID,
-			CardNo:    cardNo,
-			Status:    model.CardStatusUnsold,
+			CardNoHash: encrypted,
+			Status:     model.CardStatusUnsold,
 		}
 
 		if err := database.DB.Create(card).Error; err != nil {
@@ -105,6 +125,12 @@ func (s *CardService) GetByID(id uint) (*model.Card, error) {
 	if err := database.DB.First(&card, id).Error; err != nil {
 		return nil, errors.New("卡密不存在")
 	}
+	decrypted, err := s.decryptCardNo(card.CardNoHash)
+	if err == nil {
+		card.CardNo = decrypted
+	} else {
+		card.CardNo = card.CardNoHash
+	}
 	return &card, nil
 }
 
@@ -138,6 +164,15 @@ func (s *CardService) List(page, pageSize, productID int, status int) (*CardList
 	offset := (page - 1) * pageSize
 	if err := query.Order("id DESC").Offset(offset).Limit(pageSize).Find(&cards).Error; err != nil {
 		return nil, err
+	}
+
+	for i := range cards {
+		decrypted, err := s.decryptCardNo(cards[i].CardNoHash)
+		if err == nil {
+			cards[i].CardNo = decrypted
+		} else {
+			cards[i].CardNo = cards[i].CardNoHash
+		}
 	}
 
 	return &CardListResult{
@@ -175,7 +210,17 @@ func (s *CardService) GetAvailableCards(productID uint, limit int) ([]model.Card
 	var cards []model.Card
 	err := database.DB.Where("product_id = ? AND status = ?", productID, model.CardStatusUnsold).
 		Limit(limit).Find(&cards).Error
-	return cards, err
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range cards {
+		decrypted, err := s.decryptCardNo(cards[i].CardNoHash)
+		if err == nil {
+			cards[i].CardNo = decrypted
+		}
+	}
+	return cards, nil
 }
 
 func (s *CardService) MarkAsSold(id uint, orderNo string) error {
@@ -188,4 +233,65 @@ func (s *CardService) MarkAsSold(id uint, orderNo string) error {
 			"order_no": orderNo,
 			"sold_at":  gorm.Expr("NOW()"),
 		}).Error
+}
+
+func (s *CardService) ExportCards(productID, status int) ([]model.CardExportItem, error) {
+	if database.DB == nil {
+		return nil, errors.New("数据库未连接")
+	}
+	var cards []model.Card
+	query := database.DB.Model(&model.Card{})
+	if productID > 0 {
+		query = query.Where("product_id = ?", productID)
+	}
+	if status >= 0 {
+		query = query.Where("status = ?", status)
+	}
+	if err := query.Order("id DESC").Find(&cards).Error; err != nil {
+		return nil, err
+	}
+
+	var items []model.CardExportItem
+	for _, c := range cards {
+		no := c.CardNoHash
+		decrypted, err := s.decryptCardNo(c.CardNoHash)
+		if err == nil {
+			no = decrypted
+		}
+		statusTxt := "未使用"
+		if c.Status == model.CardStatusSold {
+			statusTxt = "已售出"
+		}
+		soldAt := ""
+		if c.SoldAt != nil {
+			soldAt = c.SoldAt.Format("2006-01-02 15:04:05")
+		}
+		items = append(items, model.CardExportItem{
+			ID:        c.ID,
+			CardNo:    no,
+			Status:    c.Status,
+			StatusTxt: statusTxt,
+			OrderNo:   c.OrderNo,
+			SoldAt:    soldAt,
+		})
+	}
+	return items, nil
+}
+
+func (s *CardService) SearchByCardNo(keyword string) (*model.Card, error) {
+	if database.DB == nil {
+		return nil, errors.New("数据库未连接")
+	}
+	encrypted, err := s.encryptCardNo(keyword)
+	if err != nil {
+		return nil, err
+	}
+	var card model.Card
+	err = database.DB.Where("card_no = ?", encrypted).First(&card).Error
+	if err != nil {
+		return nil, fmt.Errorf("卡密不存在")
+	}
+	decrypted, _ := s.decryptCardNo(card.CardNoHash)
+	card.CardNo = decrypted
+	return &card, nil
 }

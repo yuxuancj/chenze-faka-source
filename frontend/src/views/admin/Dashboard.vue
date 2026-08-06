@@ -145,30 +145,20 @@ const statusText = (status) => {
 const loadData = async () => {
   try {
     const res = await api.getDashboard()
-    if (res.data) {
-      Object.assign(stats, res.data.stats || {})
-      recentOrders.value = res.data.recent_orders || []
-      hotProducts.value = res.data.hot_products || []
+    const d = res.data || res
+    if (d) {
+      stats.products = d.product_count || 0
+      stats.orders = d.order_count || 0
+      stats.users = d.user_count || 0
+      stats.revenue = d.total_revenue || 0
+      recentOrders.value = d.recent_orders || []
+      hotProducts.value = d.top_products || []
+      if (d.sales_trend && Array.isArray(d.sales_trend)) {
+        // handle sales trend if needed
+      }
     }
   } catch (e) {
-    stats.products = 8
-    stats.orders = 1256
-    stats.users = 320
-    stats.revenue = '98,560'
-    recentOrders.value = [
-      { order_no: 'ORD202401001', product_name: 'Q币充值', amount: 95, status: 'paid', created_at: '2024-01-15 14:30' },
-      { order_no: 'ORD202401002', product_name: '话费充值', amount: 98, status: 'paid', created_at: '2024-01-15 13:20' },
-      { order_no: 'ORD202401003', product_name: '视频会员', amount: 22, status: 'pending', created_at: '2024-01-15 12:10' },
-      { order_no: 'ORD202401004', product_name: '游戏点卡', amount: 48, status: 'paid', created_at: '2024-01-15 11:00' },
-      { order_no: 'ORD202401005', product_name: '京东E卡', amount: 490, status: 'expired', created_at: '2024-01-14 16:45' }
-    ]
-    hotProducts.value = [
-      { name: 'Q币充值', sales: 320, revenue: '30,400' },
-      { name: '话费充值', sales: 280, revenue: '27,440' },
-      { name: '视频会员', sales: 195, revenue: '4,290' },
-      { name: '游戏点卡', sales: 156, revenue: '7,488' },
-      { name: '京东E卡', sales: 45, revenue: '22,050' }
-    ]
+    // keep default mock data
   }
 }
 

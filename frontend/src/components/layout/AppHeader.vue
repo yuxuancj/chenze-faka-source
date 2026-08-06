@@ -150,5 +150,13 @@ const handleLogout = () => {
   .user-name {
     display: none;
   }
+  
+  .header-right .user-info {
+    padding: 4px;
+  }
+  
+  .header-right .user-info span:not(.user-name) {
+    display: none;
+  }
 }
 </style>

@@ -1,40 +1,44 @@
 <template>
-  <div class="products-page">
+  <div class="payments-page">
     <a-card class="page-card">
       <div class="page-header">
         <a-input-search
           v-model="keyword"
-          placeholder="搜索商品名称"
+          placeholder="搜索支付通道名称"
           class="search-input"
           allow-clear
           @search="handleSearch"
         />
         <a-button type="primary" @click="openModal()">
           <iconify-icon icon="arco:plus" class="btn-icon" />
-          新增商品
+          新增支付通道
         </a-button>
       </div>
       <a-table :data="filteredList" :pagination="pagination" :bordered="false" :row-key="'id'">
         <template #columns>
           <a-table-column title="ID" data-index="id" :width="60" />
-          <a-table-column title="商品名称" data-index="name" />
-          <a-table-column title="描述" data-index="description" :ellipsis="true" />
-          <a-table-column title="价格" data-index="price">
+          <a-table-column title="通道名称" data-index="name" />
+          <a-table-column title="类型" data-index="type" :width="120">
             <template #cell="{ record }">
-              <span class="price">￥{{ record.price }}</span>
+              <a-tag :color="typeColor(record.type)">{{ typeText(record.type) }}</a-tag>
             </template>
           </a-table-column>
-          <a-table-column title="状态" data-index="status">
+          <a-table-column title="费率" data-index="fee_rate" :width="100">
+            <template #cell="{ record }">
+              <span>{{ record.fee_rate }}%</span>
+            </template>
+          </a-table-column>
+          <a-table-column title="状态" data-index="status" :width="120">
             <template #cell="{ record }">
               <a-switch v-model="record.status" @change="toggleStatus(record)" />
+              <span class="status-text">{{ record.status ? '启用' : '禁用' }}</span>
             </template>
           </a-table-column>
-          <a-table-column title="创建时间" data-index="created_at" :width="160" />
           <a-table-column title="操作" :width="160" fixed="right">
             <template #cell="{ record }">
               <a-space>
                 <a-button type="text" size="small" @click="openModal(record)">编辑</a-button>
-                <a-popconfirm content="确定删除？" @ok="handleDelete(record)">
+                <a-popconfirm content="确定删除该支付通道？" @ok="handleDelete(record)">
                   <a-button type="text" size="small" status="danger">删除</a-button>
                 </a-popconfirm>
               </a-space>
@@ -43,44 +47,42 @@
         </template>
       </a-table>
     </a-card>
+
     <a-modal
       v-model:visible="modalVisible"
-      :title="editing ? '编辑商品' : '新增商品'"
+      :title="editing ? '编辑支付通道' : '新增支付通道'"
       @ok="handleSubmit"
       @cancel="modalVisible = false"
       :ok-loading="submitting"
     >
       <a-form :model="formData" layout="vertical">
-        <a-form-item field="name" label="商品名称" required>
-          <a-input v-model="formData.name" placeholder="请输入商品名称" />
-        </a-form-item>
-        <a-form-item field="description" label="商品描述">
-          <a-textarea v-model="formData.description" placeholder="请输入商品描述" :auto-size="{ minRows: 2, maxRows: 4 }" />
+        <a-form-item field="name" label="通道名称" required>
+          <a-input v-model="formData.name" placeholder="请输入通道名称" />
         </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item field="price" label="售价" required>
-              <a-input-number v-model="formData.price" :min="0" :precision="2" class="full-width" />
+            <a-form-item field="type" label="支付类型" required>
+              <a-select v-model="formData.type" placeholder="请选择支付类型" class="full-width">
+                <a-option value="alipay">支付宝</a-option>
+                <a-option value="wechat">微信支付</a-option>
+                <a-option value="stripe">Stripe</a-option>
+                <a-option value="custom">自定义</a-option>
+              </a-select>
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item field="cost_price" label="成本价">
-              <a-input-number v-model="formData.cost_price" :min="0" :precision="2" class="full-width" />
+            <a-form-item field="fee_rate" label="费率(%)" required>
+              <a-input-number v-model="formData.fee_rate" :min="0" :max="10" :precision="2" class="full-width" />
             </a-form-item>
           </a-col>
         </a-row>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item field="icon" label="图标">
-              <a-input v-model="formData.icon" placeholder="arco:gift" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item field="color" label="主题色">
-              <a-input v-model="formData.color" placeholder="#2a7fff" />
-            </a-form-item>
-          </a-col>
-        </a-row>
+        <a-form-item field="config" label="配置信息">
+          <a-textarea
+            v-model="formData.config"
+            placeholder='请输入JSON配置，如 {"app_id":"xxx","secret":"xxx"}'
+            :auto-size="{ minRows: 3, maxRows: 6 }"
+          />
+        </a-form-item>
         <a-form-item field="status" label="状态">
           <a-switch v-model="formData.status" />
           <span class="status-label">{{ formData.status ? '启用' : '禁用' }}</span>
@@ -112,13 +114,21 @@ const list = ref([])
 
 const formData = reactive({
   name: '',
-  description: '',
-  price: 0,
-  cost_price: 0,
-  icon: 'arco:gift',
-  color: '#2a7fff',
+  type: 'alipay',
+  fee_rate: 0,
+  config: '',
   status: true
 })
+
+const typeColor = (type) => {
+  const map = { alipay: 'blue', wechat: 'green', stripe: 'purple', custom: 'gray' }
+  return map[type] || 'gray'
+}
+
+const typeText = (type) => {
+  const map = { alipay: '支付宝', wechat: '微信支付', stripe: 'Stripe', custom: '自定义' }
+  return map[type] || type
+}
 
 const filteredList = computed(() => {
   let result = list.value
@@ -131,16 +141,17 @@ const filteredList = computed(() => {
 
 const loadData = async () => {
   try {
-    const res = await api.adminGetProducts()
+    const res = await api.adminGetPayments()
     if (res.data) {
-      list.value = res.data.products || res.data.items || res.data
+      list.value = res.data.items || res.data
       pagination.total = res.data.total || list.value.length
     }
   } catch (e) {
     list.value = [
-      { id: 1, name: 'Q币充值', description: '100Q币 官方直充', price: 95, cost_price: 90, icon: 'arco:gift', color: '#2a7fff', status: true, created_at: '2024-01-15 10:00' },
-      { id: 2, name: '话费充值', description: '100元话费 秒到账', price: 98, cost_price: 95, icon: 'arco:phone', color: '#52c41a', status: true, created_at: '2024-01-14 15:30' },
-      { id: 3, name: '视频会员', description: '腾讯视频VIP月卡', price: 22, cost_price: 18, icon: 'arco:play-circle', color: '#fa541c', status: true, created_at: '2024-01-13 09:20' }
+      { id: 1, name: '支付宝通道', type: 'alipay', fee_rate: 1.0, config: '{"app_id":"2021000000"}', status: true },
+      { id: 2, name: '微信支付通道', type: 'wechat', fee_rate: 0.6, config: '{"mch_id":"1600000000"}', status: true },
+      { id: 3, name: 'Stripe通道', type: 'stripe', fee_rate: 2.9, config: '{"api_key":"sk_live_xxx"}', status: false },
+      { id: 4, name: '第三方通道', type: 'custom', fee_rate: 1.5, config: '{"api_url":"https://example.com"}', status: true }
     ]
     pagination.total = list.value.length
   }
@@ -157,8 +168,7 @@ const openModal = (record) => {
   } else {
     editing.value = null
     Object.assign(formData, {
-      name: '', description: '', price: 0, cost_price: 0,
-      icon: 'arco:gift', color: '#2a7fff', status: true
+      name: '', type: 'alipay', fee_rate: 0, config: '', status: true
     })
   }
   modalVisible.value = true
@@ -166,16 +176,16 @@ const openModal = (record) => {
 
 const handleSubmit = async () => {
   if (!formData.name) {
-    Message.warning('请输入商品名称')
+    Message.warning('请输入通道名称')
     return
   }
   submitting.value = true
   try {
     if (editing.value) {
-      await api.updateProduct(editing.value.id, formData)
+      await api.adminUpdatePayment(formData)
       Message.success('更新成功')
     } else {
-      await api.createProduct(formData)
+      await api.adminCreatePayment(formData)
       Message.success('创建成功')
     }
     modalVisible.value = false
@@ -189,7 +199,7 @@ const handleSubmit = async () => {
 
 const handleDelete = async (record) => {
   try {
-    await api.deleteProduct(record.id)
+    await api.adminDeletePayment(record.id)
     Message.success('删除成功')
     loadData()
   } catch (e) {
@@ -199,7 +209,7 @@ const handleDelete = async (record) => {
 
 const toggleStatus = async (record) => {
   try {
-    await api.updateProduct(record.id, { status: record.status })
+    await api.adminUpdatePayment({ id: record.id, status: record.status })
     Message.success('状态更新成功')
   } catch (e) {
     Message.error(e.message || '更新失败')
@@ -211,7 +221,7 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.products-page {
+.payments-page {
   padding: 4px;
 }
 
@@ -235,11 +245,6 @@ onMounted(loadData)
   margin-right: 4px;
 }
 
-.price {
-  color: #f53f3f;
-  font-weight: 600;
-}
-
 .full-width {
   width: 100%;
 }
@@ -248,5 +253,22 @@ onMounted(loadData)
   margin-left: 8px;
   font-size: 13px;
   color: #86909c;
+}
+
+.status-text {
+  margin-left: 8px;
+  font-size: 13px;
+  color: #86909c;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    width: 100%;
+  }
 }
 </style>

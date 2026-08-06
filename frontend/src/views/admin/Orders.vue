@@ -159,9 +159,17 @@ const statusText = (status) => {
 
 const loadData = async () => {
   try {
-    const res = await api.getOrders()
+    const res = await api.adminGetOrders()
     if (res.data) {
-      list.value = res.data
+      const items = res.data.orders || res.data.items || res.data
+      list.value = items.map(o => ({
+        ...o,
+        amount: o.amount ?? o.total_amount,
+        status: typeof o.status === 'number'
+          ? (['pending', 'paid', 'completed', 'cancelled'][o.status] || o.status)
+          : o.status
+      }))
+      pagination.total = res.data.total || list.value.length
     }
   } catch (e) {
     list.value = [

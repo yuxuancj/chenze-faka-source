@@ -49,6 +49,12 @@ const routes = [
         meta: { title: '仪表盘', icon: 'arco:dashboard' }
       },
       {
+        path: 'categories',
+        name: 'categories',
+        component: () => import('../views/admin/Categories.vue'),
+        meta: { title: '商品分类', icon: 'arco:menu' }
+      },
+      {
         path: 'products',
         name: 'products',
         component: () => import('../views/admin/Products.vue'),
@@ -65,6 +71,30 @@ const routes = [
         name: 'orders',
         component: () => import('../views/admin/Orders.vue'),
         meta: { title: '订单管理', icon: 'arco:order' }
+      },
+      {
+        path: 'payments',
+        name: 'payments',
+        component: () => import('../views/admin/Payments.vue'),
+        meta: { title: '支付接口', icon: 'arco:pay-circle' }
+      },
+      {
+        path: 'emails',
+        name: 'emails',
+        component: () => import('../views/admin/Emails.vue'),
+        meta: { title: '邮件系统', icon: 'arco:mail' }
+      },
+      {
+        path: 'nodes',
+        name: 'nodes',
+        component: () => import('../views/admin/Nodes.vue'),
+        meta: { title: '节点管理', icon: 'arco:cloud' }
+      },
+      {
+        path: 'logs',
+        name: 'logs',
+        component: () => import('../views/admin/Logs.vue'),
+        meta: { title: '日志系统', icon: 'arco:file-one' }
       },
       {
         path: 'settings',

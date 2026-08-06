@@ -73,9 +73,18 @@ func AutoMigrate() error {
 	}
 	return DB.AutoMigrate(
 		&model.User{},
+		&model.Category{},
 		&model.Product{},
 		&model.Card{},
 		&model.Order{},
+		&model.PaymentChannel{},
+		&model.EmailConfig{},
+		&model.Node{},
+		&model.OperationLog{},
+		&model.OrderLog{},
+		&model.EmailLog{},
+		&model.UpgradeLog{},
+		&model.FileUpload{},
 	)
 }
 
@@ -92,7 +101,7 @@ func IsAvailable() bool {
 	return DB != nil
 }
 
-func TestConnection(cfg *model.DatabaseConfig) error {
+func TestConnection(cfg *model.DatabaseConfig) (string, error) {
 	var testDB *gorm.DB
 	var err error
 
@@ -104,18 +113,28 @@ func TestConnection(cfg *model.DatabaseConfig) error {
 	}
 
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	sqlDB, err := testDB.DB()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer sqlDB.Close()
 
 	if err := sqlDB.Ping(); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	var version string
+	if cfg.Driver != "sqlite" {
+		row := sqlDB.QueryRow("SELECT VERSION()")
+		if err := row.Scan(&version); err != nil {
+			version = "unknown"
+		}
+	} else {
+		version = "3.x"
+	}
+
+	return version, nil
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"chenze-faka/internal/model"
+	"chenze-faka/internal/pkg/captcha"
 	"chenze-faka/internal/pkg/database"
 	"chenze-faka/internal/pkg/response"
 	"chenze-faka/internal/service"
@@ -35,13 +36,22 @@ func NewAuthController(jwtSecret string, expireHours int, siteName string, licen
 
 func (h *AuthController) Login(c *gin.Context) {
 	var req struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
+		Username  string `json:"username" binding:"required"`
+		Password  string `json:"password" binding:"required"`
+		CaptchaID string `json:"captcha_id"`
+		Captcha   string `json:"captcha"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "无效的请求参数")
 		return
+	}
+
+	if req.CaptchaID != "" && req.Captcha != "" {
+		if !captcha.Verify(req.CaptchaID, req.Captcha) {
+			response.Fail(c, "验证码错误")
+			return
+		}
 	}
 
 	token, user, err := h.authService.Login(req.Username, req.Password, h.jwtSecret, h.expireHours)
@@ -57,6 +67,14 @@ func (h *AuthController) Login(c *gin.Context) {
 			"username": user.Username,
 			"role":     user.Role,
 		},
+	})
+}
+
+func (h *AuthController) GetCaptcha(c *gin.Context) {
+	id, imgBase64 := captcha.Generate()
+	response.Success(c, gin.H{
+		"id":  id,
+		"img": "data:image/png;base64," + imgBase64,
 	})
 }
 
@@ -267,13 +285,15 @@ func (h *AuthController) TestDatabase(c *gin.Context) {
 		Password: req.Password,
 	}
 
-	if err := database.TestConnection(cfg); err != nil {
+	version, err := database.TestConnection(cfg)
+	if err != nil {
 		response.Fail(c, "数据库连接失败: "+err.Error())
 		return
 	}
 
 	response.Success(c, gin.H{
 		"message": "数据库连接成功",
+		"version": version,
 	})
 }
 

@@ -313,11 +313,27 @@ const getProductName = (productId) => {
 const loadData = async () => {
   try {
     const [cardsRes, productsRes] = await Promise.all([
-      api.getCards(),
-      api.getProducts()
+      api.adminGetCards(),
+      api.adminGetProducts()
     ])
-    if (cardsRes.data) list.value = cardsRes.data
-    if (productsRes.data) products.value = productsRes.data
+    if (cardsRes.data) {
+      const items = cardsRes.data.cards || cardsRes.data.items || cardsRes.data
+      const productMap = {}
+      if (productsRes.data) {
+        const ps = productsRes.data.products || productsRes.data.items || productsRes.data
+        ps.forEach(p => { productMap[p.id] = p.name })
+        products.value = ps
+      }
+      list.value = items.map(c => ({
+        ...c,
+        card_content: c.card_content || c.card_no,
+        product_name: c.product_name || productMap[c.product_id] || '-',
+        status: c.status === 1 ? 'used' : 'available',
+        used_at: c.used_at || c.sold_at || null
+      }))
+      pagination.total = list.value.length
+      recordPagination.total = list.value.length
+    }
   } catch (e) {
     products.value = [
       { id: 1, name: 'Q币充值' },

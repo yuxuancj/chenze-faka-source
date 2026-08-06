@@ -1,5 +1,12 @@
 <template>
   <a-layout class="admin-layout">
+    <!-- Mobile overlay -->
+    <div
+      v-if="isMobile && !collapsed"
+      class="mobile-overlay"
+      @click="collapsed = true"
+    ></div>
+
     <a-layout-sider
       v-model:collapsed="collapsed"
       :collapsible="true"
@@ -7,6 +14,7 @@
       :collapsed-width="60"
       :width="220"
       class="admin-sider"
+      :class="{ 'sider-mobile': isMobile }"
     >
       <div class="logo">
         <div class="logo-icon">
@@ -19,7 +27,7 @@
         :selected-keys="selectedKeys"
         :open-keys="openKeys"
         @open-keys-change="handleOpenChange"
-        @select="handleSelect"
+        @menu-item-click="handleMenuItemClick"
         class="admin-menu"
       >
         <a-menu-item v-for="item in menuItems" :key="item.path">
@@ -48,13 +56,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from './AppHeader.vue'
 
 const collapsed = ref(false)
 const route = useRoute()
 const router = useRouter()
+
+const isMobile = ref(false)
 
 const siteName = computed(() => {
   try {
@@ -67,9 +77,14 @@ const siteName = computed(() => {
 
 const menuItems = [
   { path: '/admin/dashboard', title: '仪表盘', icon: 'arco:dashboard' },
+  { path: '/admin/categories', title: '商品分类', icon: 'arco:menu' },
   { path: '/admin/products', title: '商品管理', icon: 'arco:apps' },
-  { path: '/admin/cards', title: '发卡管理', icon: 'arco:file' },
+  { path: '/admin/cards', title: '卡密管理', icon: 'arco:file' },
   { path: '/admin/orders', title: '订单管理', icon: 'arco:order' },
+  { path: '/admin/payments', title: '支付接口', icon: 'arco:pay-circle' },
+  { path: '/admin/emails', title: '邮件系统', icon: 'arco:mail' },
+  { path: '/admin/nodes', title: '节点管理', icon: 'arco:cloud' },
+  { path: '/admin/logs', title: '日志系统', icon: 'arco:file-one' },
   { path: '/admin/settings', title: '系统设置', icon: 'arco:settings' }
 ]
 
@@ -88,16 +103,19 @@ const handleOpenChange = (keys) => {
   openKeys.value = keys
 }
 
-const handleSelect = (key) => {
-  if (typeof key === 'string') {
-    router.push(key)
-  } else if (Array.isArray(key)) {
-    router.push(key[0])
+const handleMenuItemClick = (key) => {
+  const path = typeof key === 'string' ? key : (Array.isArray(key) ? key[0] : key)
+  if (path && path !== route.path) {
+    router.push(path)
+    if (isMobile.value) {
+      collapsed.value = true
+    }
   }
 }
 
 const checkMobile = () => {
-  if (window.innerWidth < 992) {
+  isMobile.value = window.innerWidth < 992
+  if (isMobile.value) {
     collapsed.value = true
   }
 }
@@ -121,6 +139,27 @@ onUnmounted(() => {
   background: var(--color-bg-2);
   border-right: 1px solid var(--color-border-2);
   overflow: hidden;
+  transition: width 0.2s;
+}
+
+.sider-mobile {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1100;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1050;
+  transition: opacity 0.2s;
 }
 
 .logo {
@@ -181,6 +220,11 @@ onUnmounted(() => {
 }
 
 @media (max-width: 992px) {
+  .admin-layout {
+    height: auto;
+    min-height: 100vh;
+  }
+
   .content-wrapper {
     padding: 12px;
   }
@@ -191,16 +235,7 @@ onUnmounted(() => {
     height: auto;
     min-height: 100vh;
   }
-  
-  .admin-sider {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 1000;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-  }
-  
+
   .content-wrapper {
     padding: 12px 10px;
   }

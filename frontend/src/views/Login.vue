@@ -59,7 +59,8 @@
                 </a-col>
                 <a-col :span="8">
                   <div class="captcha-box" @click="refreshCaptcha">
-                    <canvas ref="captchaCanvas" width="100" height="40"></canvas>
+                    <img v-if="captchaImg" :src="captchaImg" alt="captcha" />
+                    <canvas v-else ref="captchaCanvas" width="100" height="40"></canvas>
                   </div>
                 </a-col>
               </a-row>
@@ -90,12 +91,29 @@ const router = useRouter()
 const siteName = ref('晨泽发卡')
 const loading = ref(false)
 const captchaCanvas = ref(null)
+const captchaImg = ref('')
+const captchaId = ref('')
 
 const loginForm = reactive({
   username: '',
   password: '',
   captcha: ''
 })
+
+const loadCaptcha = async () => {
+  try {
+    const res = await api.getCaptcha()
+    const d = res.data || res
+    if (d && d.id) {
+      captchaId.value = d.id
+      captchaImg.value = d.img || ''
+    } else {
+      generateCaptcha()
+    }
+  } catch {
+    generateCaptcha()
+  }
+}
 
 const generateCaptcha = () => {
   const canvas = captchaCanvas.value
@@ -132,7 +150,8 @@ const generateCaptcha = () => {
 }
 
 const refreshCaptcha = () => {
-  generateCaptcha()
+  captchaImg.value = ''
+  loadCaptcha()
 }
 
 const handleLogin = async () => {
@@ -144,17 +163,24 @@ const handleLogin = async () => {
     Message.warning('请输入密码')
     return
   }
-  if (loginForm.captcha.toUpperCase() !== loginForm._captcha) {
+  if (captchaImg.value) {
+    // backend captcha - verified server-side
+  } else if (loginForm.captcha.toUpperCase() !== loginForm._captcha) {
     Message.warning('验证码错误')
     refreshCaptcha()
     return
   }
   loading.value = true
   try {
-    const res = await api.login({
+    const loginData = {
       username: loginForm.username,
       password: loginForm.password
-    })
+    }
+    if (captchaId.value) {
+      loginData.captcha_id = captchaId.value
+      loginData.captcha = loginForm.captcha
+    }
+    const res = await api.login(loginData)
     const data = res.data || res
     if (data && data.token) {
       localStorage.setItem('admin_token', data.token)
@@ -175,7 +201,7 @@ const handleLogin = async () => {
 }
 
 onMounted(() => {
-  generateCaptcha()
+  loadCaptcha()
 })
 </script>
 

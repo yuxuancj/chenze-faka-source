@@ -78,6 +78,8 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 	{
 		api.GET("/site/config", authCtrl.GetSiteConfig)
 
+		api.GET("/captcha", authCtrl.GetCaptcha)
+
 		auth := api.Group("/auth")
 		{
 			auth.POST("/login", authCtrl.Login)
@@ -120,6 +122,17 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 			admin.GET("/system/status", adminCtrl.SystemStatus)
 			admin.GET("/system/license", adminCtrl.LicenseStatus)
 			admin.POST("/system/license/verify", adminCtrl.VerifyLicense)
+			admin.GET("/dashboard", adminCtrl.Dashboard)
+			admin.GET("/dashboard/order-status", adminCtrl.OrderStatusCounts)
+
+			categoryAdmin := admin.Group("/categories")
+			{
+				categoryAdmin.GET("", adminCtrl.CategoryList)
+				categoryAdmin.GET("/all", adminCtrl.CategoryAll)
+				categoryAdmin.POST("", adminCtrl.CategoryCreate)
+				categoryAdmin.PUT("", adminCtrl.CategoryUpdate)
+				categoryAdmin.DELETE("/:id", adminCtrl.CategoryDelete)
+			}
 
 			productAdmin := admin.Group("/products")
 			{
@@ -134,17 +147,70 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 				cardAdmin.POST("/import", adminCtrl.CardImport)
 				cardAdmin.GET("", adminCtrl.CardList)
 				cardAdmin.DELETE("/:id", adminCtrl.CardDelete)
+				cardAdmin.GET("/export", adminCtrl.CardExport)
 			}
 
 			orderAdmin := admin.Group("/orders")
 			{
 				orderAdmin.GET("", adminCtrl.OrderList)
+				orderAdmin.GET("/logs", adminCtrl.OrderLogs)
+			}
+
+			paymentAdmin := admin.Group("/payments")
+			{
+				paymentAdmin.GET("", adminCtrl.PaymentList)
+				paymentAdmin.GET("/all", adminCtrl.PaymentAll)
+				paymentAdmin.POST("", adminCtrl.PaymentCreate)
+				paymentAdmin.PUT("", adminCtrl.PaymentUpdate)
+				paymentAdmin.DELETE("/:id", adminCtrl.PaymentDelete)
+			}
+
+			emailAdmin := admin.Group("/emails")
+			{
+				emailAdmin.GET("", adminCtrl.EmailList)
+				emailAdmin.POST("", adminCtrl.EmailCreate)
+				emailAdmin.PUT("", adminCtrl.EmailUpdate)
+				emailAdmin.DELETE("/:id", adminCtrl.EmailDelete)
+				emailAdmin.POST("/test/:id", adminCtrl.EmailTest)
+				emailAdmin.GET("/logs", adminCtrl.EmailLogs)
+			}
+
+			logAdmin := admin.Group("/logs")
+			{
+				logAdmin.GET("/operations", adminCtrl.OperationLogs)
+				logAdmin.GET("/logins", adminCtrl.LoginLogs)
+			}
+
+			nodeAdmin := admin.Group("/nodes")
+			{
+				nodeAdmin.GET("", adminCtrl.NodeList)
+				nodeAdmin.POST("", adminCtrl.NodeCreate)
+				nodeAdmin.PUT("", adminCtrl.NodeUpdate)
+				nodeAdmin.DELETE("/:id", adminCtrl.NodeDelete)
+				nodeAdmin.POST("/ping/:id", adminCtrl.NodePing)
 			}
 
 			siteAdmin := admin.Group("/settings")
 			{
 				siteAdmin.GET("", adminCtrl.GetSettings)
 				siteAdmin.PUT("", adminCtrl.UpdateSettings)
+			}
+
+			upgradeAdmin := admin.Group("/upgrade")
+			{
+				upgradeAdmin.GET("/version", adminCtrl.GetVersion)
+				upgradeAdmin.GET("/check", adminCtrl.CheckUpdate)
+				upgradeAdmin.POST("/upload", adminCtrl.UploadPackage)
+				upgradeAdmin.POST("/apply", adminCtrl.ApplyUpgrade)
+				upgradeAdmin.GET("/logs", adminCtrl.UpgradeLogs)
+			}
+
+			uploadAdmin := admin.Group("/upload")
+			{
+				uploadAdmin.POST("", adminCtrl.UploadFile)
+				uploadAdmin.GET("", adminCtrl.ListFiles)
+				uploadAdmin.GET("/:id", adminCtrl.GetFile)
+				uploadAdmin.DELETE("/:id", adminCtrl.DeleteFile)
 			}
 		}
 	}
