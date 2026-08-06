@@ -18,11 +18,12 @@ import (
 )
 
 type LicenseService struct {
-	cfg      *model.LicenseConfig
-	mu       sync.RWMutex
-	cache    *LicenseCache
-	verified bool
-	stopCh   chan struct{}
+	cfg       *model.LicenseConfig
+	mu        sync.RWMutex
+	cache     *LicenseCache
+	verified  bool
+	stopCh    chan struct{}
+	baseURLs  []string
 }
 
 type LicenseCache struct {
@@ -32,6 +33,7 @@ type LicenseCache struct {
 	LastMessage     string `json:"last_message"`
 	ExpireAt        string `json:"expire_at,omitempty"`
 	AppName         string `json:"app_name,omitempty"`
+	UsedServer      string `json:"used_server,omitempty"`
 }
 
 type verifyRequest struct {
@@ -74,6 +76,13 @@ func NewLicenseService(cfg *model.LicenseConfig) *LicenseService {
 	if cfg.AppKey == "" {
 		cfg.AppKey = "app_1c1467945bb2_3105"
 	}
+	if cfg.AppSecret == "" {
+		if v := os.Getenv("LICENSE_APP_SECRET"); v != "" {
+			cfg.AppSecret = v
+		} else if data, err := os.ReadFile("license.secret"); err == nil {
+			cfg.AppSecret = strings.TrimSpace(string(data))
+		}
+	}
 	if cfg.Interval <= 0 {
 		cfg.Interval = 3600
 	}
@@ -84,9 +93,22 @@ func NewLicenseService(cfg *model.LicenseConfig) *LicenseService {
 		cfg.CacheFile = "license.cache"
 	}
 
+	baseURLs := []string{}
+	if cfg.BaseURL != "" {
+		baseURLs = append(baseURLs, cfg.BaseURL)
+	}
+	if cfg.BackupURL != "" && cfg.BackupURL != cfg.BaseURL {
+		baseURLs = append(baseURLs, cfg.BackupURL)
+	}
+	if len(baseURLs) == 0 {
+		baseURLs = append(baseURLs, "https://auth.seanld.com")
+		baseURLs = append(baseURLs, "http://220.167.100.148:19127")
+	}
+
 	s := &LicenseService{
-		cfg:    cfg,
-		stopCh: make(chan struct{}),
+		cfg:      cfg,
+		stopCh:   make(chan struct{}),
+		baseURLs: baseURLs,
 	}
 
 	s.loadCache()
@@ -139,55 +161,66 @@ func (s *LicenseService) Verify() (bool, error) {
 		return false, err
 	}
 
-	url := strings.TrimRight(s.cfg.BaseURL, "/") + "/api/license/verify"
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
-	if err != nil {
-		s.handleError("network error: " + err.Error())
-		return s.IsGracePeriodValid(), nil
-	}
-	defer resp.Body.Close()
+	var lastError error
+	for _, baseURL := range s.baseURLs {
+		url := strings.TrimRight(baseURL, "/") + "/api/license/verify"
+		resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+		if err != nil {
+			lastError = err
+			continue
+		}
 
-	var result verifyResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		s.handleError("decode error: " + err.Error())
-		return s.IsGracePeriodValid(), nil
-	}
+		var result verifyResponse
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			resp.Body.Close()
+			lastError = err
+			continue
+		}
+		resp.Body.Close()
 
-	now := time.Now().Unix()
-	s.mu.Lock()
-	s.cache.LastVerifyTime = now
-	s.cache.LastResult = result.Data.Result
-	s.cache.LastMessage = result.Msg
+		now := time.Now().Unix()
+		s.mu.Lock()
+		s.cache.LastVerifyTime = now
+		s.cache.LastResult = result.Data.Result
+		s.cache.LastMessage = result.Msg
 
-	if result.Code == 200 && result.Data.Result == "pass" {
-		s.cache.LastSuccessTime = now
-		s.cache.LastResult = "pass"
-		s.cache.ExpireAt = result.Data.ExpireAt
-		s.cache.AppName = result.Data.AppName
-		s.verified = true
-		s.saveCache()
+		if result.Code == 200 && result.Data.Result == "pass" {
+			s.cache.LastSuccessTime = now
+			s.cache.LastResult = "pass"
+			s.cache.ExpireAt = result.Data.ExpireAt
+			s.cache.AppName = result.Data.AppName
+			s.cache.UsedServer = baseURL
+			s.verified = true
+			s.saveCache()
+			s.mu.Unlock()
+			return true, nil
+		}
+
+		lastError = nil
 		s.mu.Unlock()
-		return true, nil
 	}
 
 	s.verified = false
-	s.mu.Unlock()
-	s.saveCache()
+	s.handleError("所有授权站验证失败")
 
+	if lastError != nil {
+		return s.IsGracePeriodValid(), nil
+	}
 	return s.IsGracePeriodValid(), nil
 }
 
 func (s *LicenseService) QuickVerify(licenseKey, domain, serverIP string) (*QuickVerifyResult, error) {
 	cfg := &model.LicenseConfig{
-		Enabled:    s.cfg.Enabled,
-		BaseURL:    s.cfg.BaseURL,
-		AppKey:     s.cfg.AppKey,
-		AppSecret:  s.cfg.AppSecret,
-		LicenseKey: licenseKey,
-		Domain:     domain,
-		ServerIP:   serverIP,
-		CacheFile:  s.cfg.CacheFile,
-		Interval:   s.cfg.Interval,
+		Enabled:     s.cfg.Enabled,
+		BaseURL:     s.cfg.BaseURL,
+		BackupURL:   s.cfg.BackupURL,
+		AppKey:      s.cfg.AppKey,
+		AppSecret:   s.cfg.AppSecret,
+		LicenseKey:  licenseKey,
+		Domain:      domain,
+		ServerIP:    serverIP,
+		CacheFile:   s.cfg.CacheFile,
+		Interval:    s.cfg.Interval,
 		GracePeriod: s.cfg.GracePeriod,
 	}
 

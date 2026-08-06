@@ -9,41 +9,42 @@ type Config struct {
 }
 
 type SystemConfig struct {
-	SiteName string `yaml:"site_name"`
-	Port     int    `yaml:"port"`
-	Mode     string `yaml:"mode"`
+	SiteName string `json:"site_name" yaml:"site_name"`
+	Port     int    `json:"port" yaml:"port"`
+	Mode     string `json:"mode" yaml:"mode"`
 }
 
 type DatabaseConfig struct {
-	Driver   string `yaml:"driver"`
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	DBName   string `yaml:"dbname"`
-	SQLite   string `yaml:"sqlite_path"`
+	Driver   string `json:"driver" yaml:"driver"`
+	Host     string `json:"host" yaml:"host"`
+	Port     int    `json:"port" yaml:"port"`
+	User     string `json:"username" yaml:"user"`
+	Password string `json:"password" yaml:"password"`
+	DBName   string `json:"database" yaml:"dbname"`
+	SQLite   string `json:"sqlite_path" yaml:"sqlite_path"`
 }
 
 type JWTConfig struct {
-	Secret     string `yaml:"secret"`
-	ExpireTime int    `yaml:"expire_hours"`
+	Secret     string `json:"secret" yaml:"secret"`
+	ExpireTime int    `json:"expire_time" yaml:"expire_hours"`
 }
 
 type PayConfig struct {
-	URL      string `yaml:"url"`
-	Merchant string `yaml:"merchant"`
-	Key      string `yaml:"key"`
+	URL      string `json:"url" yaml:"url"`
+	Merchant string `json:"merchant" yaml:"merchant"`
+	Key      string `json:"key" yaml:"key"`
 }
 
 type LicenseConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	BaseURL    string `yaml:"base_url"`
-	AppKey     string `yaml:"app_key"`
-	AppSecret  string `yaml:"app_secret"`
-	LicenseKey string `yaml:"license_key"`
-	Domain     string `yaml:"domain"`
-	ServerIP   string `yaml:"server_ip"`
-	CacheFile  string `yaml:"cache_file"`
-	Interval   int    `yaml:"interval"`
-	GracePeriod int   `yaml:"grace_period"`
+	Enabled     bool   `json:"enabled" yaml:"enabled"`
+	BaseURL     string `json:"base_url" yaml:"base_url"`
+	BackupURL   string `json:"backup_url" yaml:"backup_url"`
+	AppKey      string `json:"app_key" yaml:"app_key"`
+	AppSecret   string `json:"app_secret" yaml:"app_secret"`
+	LicenseKey  string `json:"license_key" yaml:"license_key"`
+	Domain      string `json:"domain" yaml:"domain"`
+	ServerIP    string `json:"server_ip" yaml:"server_ip"`
+	CacheFile   string `json:"cache_file" yaml:"cache_file"`
+	Interval    int    `json:"interval" yaml:"interval"`
+	GracePeriod int    `json:"grace_period" yaml:"grace_period"`
 }

@@ -90,10 +90,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import { useAdminStore } from '../../stores'
 import { api } from '../../api'
 
-const store = useAdminStore()
 const submitting = ref(false)
 
 const siteForm = reactive({
@@ -115,7 +113,7 @@ const handleSave = async () => {
   submitting.value = true
   try {
     await api.updateSiteConfig(siteForm)
-    store.setSiteConfig(siteForm)
+    localStorage.setItem('site_config', JSON.stringify(siteForm))
     Message.success('保存成功')
   } catch (e) {
     Message.error(e.message || '保存失败')
@@ -131,7 +129,12 @@ const loadConfig = async () => {
       Object.assign(siteForm, res.data)
     }
   } catch (e) {
-    Object.assign(siteForm, store.siteConfig)
+    try {
+      const cached = JSON.parse(localStorage.getItem('site_config') || '{}')
+      if (Object.keys(cached).length > 0) {
+        Object.assign(siteForm, cached)
+      }
+    } catch {}
   }
 }
 

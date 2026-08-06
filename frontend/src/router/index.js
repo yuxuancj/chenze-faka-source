@@ -32,6 +32,11 @@ const routes = [
     name: 'install'
   },
   {
+    path: '/install-page',
+    component: () => import('../views/Install.vue'),
+    name: 'install-page'
+  },
+  {
     path: '/admin',
     component: () => import('../components/layout/AdminLayout.vue'),
     redirect: '/admin/dashboard',
@@ -68,6 +73,10 @@ const routes = [
         meta: { title: '系统设置', icon: 'arco:settings' }
       }
     ]
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 

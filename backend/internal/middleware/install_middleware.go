@@ -55,6 +55,7 @@ func isAllowedWhenNotInstalled(path string) bool {
 		"/static/",
 		"/assets/",
 		"/favicon.ico",
+		"/api/install",
 	}
 
 	for _, prefix := range allowedPrefixes {

@@ -1,71 +1,74 @@
 <template>
-  <a-config-provider>
-    <a-layout class="admin-layout">
-      <a-layout-sider
-        v-model:collapsed="collapsed"
-        :collapsible="true"
-        :breakpoint="'xl'"
-        :collapsed-width="60"
-        :width="220"
-        class="admin-sider"
-      >
-        <div class="logo">
-          <div class="logo-icon">
-            <iconify-icon icon="arco:shop" :size="24" />
-          </div>
-          <span v-if="!collapsed" class="logo-text">{{ siteName }}</span>
+  <a-layout class="admin-layout">
+    <a-layout-sider
+      v-model:collapsed="collapsed"
+      :collapsible="true"
+      :breakpoint="'lg'"
+      :collapsed-width="60"
+      :width="220"
+      class="admin-sider"
+    >
+      <div class="logo">
+        <div class="logo-icon">
+          <iconify-icon icon="arco:shop" :size="24" />
         </div>
-        <a-menu
-          :collapsed="collapsed"
-          :selected-keys="selectedKeys"
-          :open-keys="openKeys"
-          @open-keys-change="handleOpenChange"
-          @select="handleSelect"
-          class="admin-menu"
-        >
-          <a-menu-item v-for="item in menuItems" :key="item.path">
-            <iconify-icon :icon="item.icon" :size="18" />
-            <template #title>{{ item.title }}</template>
-          </a-menu-item>
-        </a-menu>
-      </a-layout-sider>
-      <a-layout>
-        <app-header
-          v-model:collapsed="collapsed"
-          :breadcrumb="breadcrumb"
-          :site-name="siteName"
-        />
-        <a-layout-content class="admin-content">
-          <div class="content-wrapper">
-            <router-view v-slot="{ Component }">
-              <transition name="fade" mode="out-in">
-                <component :is="Component" />
-              </transition>
-            </router-view>
-          </div>
-        </a-layout-content>
-      </a-layout>
+        <span v-if="!collapsed" class="logo-text">{{ siteName }}</span>
+      </div>
+      <a-menu
+        :collapsed="collapsed"
+        :selected-keys="selectedKeys"
+        :open-keys="openKeys"
+        @open-keys-change="handleOpenChange"
+        @select="handleSelect"
+        class="admin-menu"
+      >
+        <a-menu-item v-for="item in menuItems" :key="item.path">
+          <iconify-icon :icon="item.icon" :size="18" />
+          <template #title>{{ item.title }}</template>
+        </a-menu-item>
+      </a-menu>
+    </a-layout-sider>
+    <a-layout>
+      <app-header
+        v-model:collapsed="collapsed"
+        :breadcrumb="breadcrumb"
+        :site-name="siteName"
+      />
+      <a-layout-content class="admin-content">
+        <div class="content-wrapper">
+          <router-view v-slot="{ Component }">
+            <transition name="fade" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </div>
+      </a-layout-content>
     </a-layout>
-  </a-config-provider>
+  </a-layout>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAdminStore } from '../../stores'
 import AppHeader from './AppHeader.vue'
 
 const collapsed = ref(false)
 const route = useRoute()
 const router = useRouter()
-const store = useAdminStore()
 
-const siteName = computed(() => store.siteName)
+const siteName = computed(() => {
+  try {
+    const config = JSON.parse(localStorage.getItem('site_config') || '{}')
+    return config.site_name || '晨泽发卡'
+  } catch {
+    return '晨泽发卡'
+  }
+})
 
 const menuItems = [
   { path: '/admin/dashboard', title: '仪表盘', icon: 'arco:dashboard' },
   { path: '/admin/products', title: '商品管理', icon: 'arco:apps' },
-  { path: '/admin/cards', title: '卡密管理', icon: 'arco:file' },
+  { path: '/admin/cards', title: '发卡管理', icon: 'arco:file' },
   { path: '/admin/orders', title: '订单管理', icon: 'arco:order' },
   { path: '/admin/settings', title: '系统设置', icon: 'arco:settings' }
 ]
@@ -86,8 +89,27 @@ const handleOpenChange = (keys) => {
 }
 
 const handleSelect = (key) => {
-  router.push(key)
+  if (typeof key === 'string') {
+    router.push(key)
+  } else if (Array.isArray(key)) {
+    router.push(key[0])
+  }
 }
+
+const checkMobile = () => {
+  if (window.innerWidth < 992) {
+    collapsed.value = true
+  }
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 </script>
 
 <style scoped>
@@ -156,5 +178,31 @@ const handleSelect = (key) => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+@media (max-width: 992px) {
+  .content-wrapper {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-layout {
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .admin-sider {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  .content-wrapper {
+    padding: 12px 10px;
+  }
 }
 </style>

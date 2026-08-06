@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { useAdminStore } from '../stores'
 
 const request = axios.create({
   baseURL: '',
@@ -8,9 +7,9 @@ const request = axios.create({
 
 request.interceptors.request.use(
   (config) => {
-    const store = useAdminStore()
-    if (store.token) {
-      config.headers.Authorization = `Bearer ${store.token}`
+    const token = localStorage.getItem('admin_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -27,8 +26,8 @@ request.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      const store = useAdminStore()
-      store.logout()
+      localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_user')
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -70,7 +69,8 @@ export const api = {
 
   install: (data) => request.post('/api/install', data),
   getLicenseStatus: () => request.get('/api/install/license-status'),
-  verifyLicense: (data) => request.post('/api/install/verify-license', data)
+  verifyLicense: (data) => request.post('/api/install/verify-license', data),
+  testDatabase: (data) => request.post('/api/install/test-database', data)
 }
 
 export default request

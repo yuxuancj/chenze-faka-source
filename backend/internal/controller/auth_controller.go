@@ -16,18 +16,20 @@ import (
 )
 
 type AuthController struct {
-	authService *service.AuthService
-	jwtSecret   string
-	expireHours int
-	siteName    string
+	authService  *service.AuthService
+	jwtSecret    string
+	expireHours  int
+	siteName     string
+	licenseCfg   *model.LicenseConfig
 }
 
-func NewAuthController(jwtSecret string, expireHours int, siteName string) *AuthController {
+func NewAuthController(jwtSecret string, expireHours int, siteName string, licenseCfg *model.LicenseConfig) *AuthController {
 	return &AuthController{
 		authService: service.NewAuthService(),
 		jwtSecret:   jwtSecret,
 		expireHours: expireHours,
 		siteName:    siteName,
+		licenseCfg:  licenseCfg,
 	}
 }
 
@@ -42,7 +44,7 @@ func (h *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.authService.Login(req.Username, req.Password, h.jwtSecret, h.expireHours)
+	token, user, err := h.authService.Login(req.Username, req.Password, h.jwtSecret, h.expireHours)
 	if err != nil {
 		response.Fail(c, err.Error())
 		return
@@ -50,6 +52,11 @@ func (h *AuthController) Login(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"token": token,
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"role":     user.Role,
+		},
 	})
 }
 
@@ -126,6 +133,21 @@ func (h *AuthController) Install(c *gin.Context) {
 		return
 	}
 
+	licenseSvc := service.NewLicenseService(&model.LicenseConfig{
+		Enabled:    true,
+		LicenseKey: req.LicenseKey,
+	})
+
+	result, err := licenseSvc.QuickVerify(req.LicenseKey, "", "")
+	if err != nil || !result.Verified {
+		errMsg := "授权码无效或已过期"
+		if err != nil {
+			errMsg = "授权验证失败: " + err.Error()
+		}
+		response.Fail(c, errMsg)
+		return
+	}
+
 	if err := database.Init(&req.Database); err != nil {
 		response.Fail(c, "数据库连接失败: "+err.Error())
 		return
@@ -161,12 +183,14 @@ func (h *AuthController) Install(c *gin.Context) {
 	cfg := model.Config{
 		System: model.SystemConfig{
 			SiteName: req.SiteName,
-			Port:     req.Database.Port,
+			Port:     12398,
+			Mode:     "debug",
 		},
 		Database: req.Database,
 		JWT:      req.JWT,
 		Pay:      req.Pay,
 		License: model.LicenseConfig{
+			Enabled:    true,
 			LicenseKey: req.LicenseKey,
 		},
 	}
@@ -205,6 +229,54 @@ func (h *AuthController) GetLicenseStatus(c *gin.Context) {
 	})
 }
 
+type TestDatabaseRequest struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Database string `json:"database"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (h *AuthController) TestDatabase(c *gin.Context) {
+	var req TestDatabaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, "无效的请求参数")
+		return
+	}
+
+	if req.Host == "" {
+		req.Host = "localhost"
+	}
+	if req.Port == 0 {
+		req.Port = 3306
+	}
+	if req.Database == "" {
+		response.Fail(c, "数据库名不能为空")
+		return
+	}
+	if req.Username == "" {
+		response.Fail(c, "用户名不能为空")
+		return
+	}
+
+	cfg := &model.DatabaseConfig{
+		Host:     req.Host,
+		Port:     req.Port,
+		DBName:   req.Database,
+		User:     req.Username,
+		Password: req.Password,
+	}
+
+	if err := database.TestConnection(cfg); err != nil {
+		response.Fail(c, "数据库连接失败: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"message": "数据库连接成功",
+	})
+}
+
 func (h *AuthController) VerifyLicense(c *gin.Context) {
 	var req struct {
 		LicenseKey string `json:"license_key"`
@@ -220,10 +292,26 @@ func (h *AuthController) VerifyLicense(c *gin.Context) {
 		return
 	}
 
-	licenseSvc := service.NewLicenseService(&model.LicenseConfig{
-		Enabled:    true,
-		LicenseKey: req.LicenseKey,
-	})
+	cfg := h.licenseCfg
+	if cfg == nil {
+		cfg = &model.LicenseConfig{}
+	}
+
+	verifyCfg := &model.LicenseConfig{
+		Enabled:     true,
+		BaseURL:     cfg.BaseURL,
+		BackupURL:   cfg.BackupURL,
+		AppKey:      cfg.AppKey,
+		AppSecret:   cfg.AppSecret,
+		LicenseKey:  req.LicenseKey,
+		Domain:      cfg.Domain,
+		ServerIP:    cfg.ServerIP,
+		CacheFile:   cfg.CacheFile,
+		Interval:    cfg.Interval,
+		GracePeriod: cfg.GracePeriod,
+	}
+
+	licenseSvc := service.NewLicenseService(verifyCfg)
 
 	result, err := licenseSvc.QuickVerify(req.LicenseKey, "", "")
 	if err != nil {

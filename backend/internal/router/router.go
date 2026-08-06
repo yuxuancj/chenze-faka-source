@@ -20,7 +20,7 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 	productCtrl := controller.NewProductController()
 	orderCtrl := controller.NewOrderController(cfg.Pay)
 	cardCtrl := controller.NewCardController()
-	authCtrl := controller.NewAuthController(cfg.JWT.Secret, cfg.JWT.ExpireTime, cfg.System.SiteName)
+	authCtrl := controller.NewAuthController(cfg.JWT.Secret, cfg.JWT.ExpireTime, cfg.System.SiteName, &cfg.License)
 	adminCtrl := controller.NewAdminController(licenseSvc)
 
 	authMw := middleware.NewAuthMiddleware(cfg.JWT.Secret, cfg.JWT.ExpireTime)
@@ -111,6 +111,7 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 		{
 			install.GET("/license-status", authCtrl.GetLicenseStatus)
 			install.POST("/verify-license", authCtrl.VerifyLicense)
+			install.POST("/test-database", authCtrl.TestDatabase)
 			install.POST("", authCtrl.Install)
 		}
 

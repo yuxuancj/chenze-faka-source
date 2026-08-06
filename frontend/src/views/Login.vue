@@ -84,13 +84,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { useAdminStore } from '../stores'
 import { api } from '../api'
 
 const router = useRouter()
-const store = useAdminStore()
-
-const siteName = store.siteName
+const siteName = ref('晨泽发卡')
 const loading = ref(false)
 const captchaCanvas = ref(null)
 
@@ -158,11 +155,16 @@ const handleLogin = async () => {
       username: loginForm.username,
       password: loginForm.password
     })
-    if (res.data) {
-      store.setToken(res.data.token)
-      store.setUser(res.data.user)
+    const data = res.data || res
+    if (data && data.token) {
+      localStorage.setItem('admin_token', data.token)
+      if (data.user) {
+        localStorage.setItem('admin_user', JSON.stringify(data.user))
+      }
       Message.success('登录成功')
       router.push('/admin/dashboard')
+    } else {
+      Message.error('登录响应数据异常')
     }
   } catch (e) {
     Message.error(e.message || '登录失败')
@@ -279,5 +281,58 @@ onMounted(() => {
 
 .captcha-box canvas {
   display: block;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .login-page {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .login-container {
+    flex-direction: column;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
+  }
+
+  .login-left {
+    flex: 0 0 auto;
+    padding: 32px 24px;
+    text-align: center;
+  }
+
+  .brand-title {
+    font-size: 24px;
+  }
+
+  .brand-slogan {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .features {
+    display: none;
+  }
+
+  .login-right {
+    flex: 1;
+    padding: 24px 20px;
+    align-items: flex-start;
+  }
+
+  .login-card {
+    max-width: 100%;
+  }
+
+  .login-title {
+    font-size: 20px;
+  }
+
+  .login-subtitle {
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
 }
 </style>

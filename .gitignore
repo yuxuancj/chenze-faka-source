@@ -17,3 +17,6 @@ config.yaml
 .DS_Store
 Thumbs.db
 *.swp
+license.secret
+license.cache
+license.secret

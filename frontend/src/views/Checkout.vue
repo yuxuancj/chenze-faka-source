@@ -4,12 +4,15 @@
       <a-page-header class="checkout-header" @back="goBack">
         <template #title>确认订单</template>
       </a-page-header>
-      <a-row :gutter="[24, 24]">
-        <a-col :xs="24" :md="16">
+      <div class="checkout-layout">
+        <div class="checkout-main">
           <a-card class="checkout-card" title="订单信息">
             <a-descriptions :column="1" bordered size="large">
               <a-descriptions-item label="商品名称">
-                {{ orderData.product_name || '-' }}
+                {{ product.name || orderData.product_name || '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="商品单价">
+                ¥{{ product.price || productPrice }}
               </a-descriptions-item>
               <a-descriptions-item label="购买数量">
                 {{ orderData.quantity || 1 }}
@@ -38,22 +41,22 @@
               </a-radio>
             </a-radio-group>
           </a-card>
-        </a-col>
-        <a-col :xs="24" :md="8">
+        </div>
+        <div class="checkout-side">
           <a-card class="summary-card" title="订单金额">
             <div class="amount-display">
-              <span class="currency">￥</span>
+              <span class="currency">¥</span>
               <span class="amount">{{ totalAmount }}</span>
             </div>
             <a-divider />
             <div class="summary-detail">
               <div class="summary-item">
                 <span>商品金额</span>
-                <span>￥{{ totalAmount }}</span>
+                <span>¥{{ itemTotal }}</span>
               </div>
               <div class="summary-item">
                 <span>优惠</span>
-                <span class="discount">-￥0.00</span>
+                <span class="discount">-¥0.00</span>
               </div>
             </div>
             <a-divider />
@@ -68,14 +71,14 @@
               立即支付
             </a-button>
           </a-card>
-        </a-col>
-      </a-row>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { api } from '../api'
@@ -85,6 +88,7 @@ const router = useRouter()
 
 const paying = ref(false)
 const payMethod = ref('alipay')
+const product = ref({})
 
 const orderData = reactive({
   product_id: route.query.product_id,
@@ -94,18 +98,27 @@ const orderData = reactive({
   remark: route.query.remark || ''
 })
 
-const totalAmount = computed(() => {
-  return (99 * orderData.quantity).toFixed(2)
+const productPrice = ref(99)
+
+const itemTotal = computed(() => {
+  const price = product.value.price || productPrice.value
+  return (price * orderData.quantity).toFixed(2)
 })
+
+const totalAmount = computed(() => itemTotal.value)
 
 const goBack = () => {
   router.back()
 }
 
 const handlePay = async () => {
+  if (!orderData.contact) {
+    Message.warning('请填写联系方式')
+    return
+  }
   Modal.confirm({
     title: '确认支付',
-    content: `确认使用${payMethod.value === 'alipay' ? '支付宝' : '微信'}支付 ￥${totalAmount.value}？`,
+    content: `确认使用${payMethod.value === 'alipay' ? '支付宝' : '微信'}支付 ¥${totalAmount.value}？`,
     onOk: async () => {
       paying.value = true
       try {
@@ -128,31 +141,49 @@ const handlePay = async () => {
     }
   })
 }
+
+onMounted(() => {
+  const id = route.query.product_id
+  if (id) {
+    api.getProduct(id).then(res => {
+      if (res.data) {
+        product.value = res.data
+        orderData.product_name = res.data.name
+      }
+    }).catch(() => {})
+  }
+})
 </script>
 
 <style scoped>
 .checkout-page {
   min-height: 100vh;
   background: #f5f7fa;
-  padding: 24px 0;
+  padding: 20px 0;
 }
 
 .page-container {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 20px;
 }
 
 .checkout-header {
   background: transparent;
   padding: 0;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+}
+
+.checkout-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
 }
 
 .checkout-card {
-  margin-bottom: 24px;
   border-radius: 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
 }
 
 .pay-method-group {
@@ -220,5 +251,25 @@ const handlePay = async () => {
 .pay-button {
   height: 48px;
   font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .checkout-layout {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 0 12px;
+  }
+  
+  .pay-method-group {
+    gap: 20px;
+  }
+  
+  .amount-display .amount {
+    font-size: 32px;
+  }
 }
 </style>

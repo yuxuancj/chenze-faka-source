@@ -91,3 +91,31 @@ func Close() {
 func IsAvailable() bool {
 	return DB != nil
 }
+
+func TestConnection(cfg *model.DatabaseConfig) error {
+	var testDB *gorm.DB
+	var err error
+
+	switch cfg.Driver {
+	case "sqlite":
+		testDB, err = initSQLite(cfg)
+	default:
+		testDB, err = initMySQL(cfg)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	sqlDB, err := testDB.DB()
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	if err := sqlDB.Ping(); err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -115,6 +115,7 @@ func defaultConfig() *model.Config {
 		License: model.LicenseConfig{
 			Enabled:     true,
 			BaseURL:     "https://auth.seanld.com",
+			BackupURL:   "http://220.167.100.148:19127",
 			AppKey:      "app_1c1467945bb2_3105",
 			AppSecret:   getEnv("LICENSE_APP_SECRET", ""),
 			LicenseKey:  getEnv("LICENSE_KEY", ""),

@@ -10,7 +10,7 @@ type User struct {
 	ID           uint           `json:"id" gorm:"primarykey"`
 	Username     string         `json:"username" gorm:"uniqueIndex;size:50;not null"`
 	PasswordHash string         `json:"-" gorm:"size:255;not null"`
-	Salt         string         `json:"-" gorm:"size:10;not null"`
+	Salt         string         `json:"-" gorm:"size:32;not null"`
 	Role         string         `json:"role" gorm:"size:20;not null;default:admin"`
 	LastLoginAt  *time.Time     `json:"last_login_at"`
 	CreatedAt    time.Time      `json:"created_at"`

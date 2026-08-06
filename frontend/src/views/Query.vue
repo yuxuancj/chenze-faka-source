@@ -167,4 +167,32 @@ onMounted(() => {
   color: #f53f3f;
   font-weight: 600;
 }
+
+@media (max-width: 768px) {
+  .query-page {
+    padding: 30px 12px;
+  }
+  
+  .query-title {
+    font-size: 24px;
+  }
+  
+  .query-form {
+    max-width: 100%;
+  }
+  
+  .result-card :deep(.arco-table) {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .query-title {
+    font-size: 20px;
+  }
+  
+  .query-desc {
+    font-size: 13px;
+  }
+}
 </style>

@@ -1,59 +1,50 @@
 <template>
   <div class="product-detail-page">
     <div class="page-container">
-      <a-page-header
-        class="detail-header"
-        @back="goBack"
-      >
+      <a-page-header class="detail-header" @back="goBack">
         <template #title>
           <span>{{ product.name || '商品详情' }}</span>
         </template>
       </a-page-header>
-      <a-row :gutter="[24, 24]">
-        <a-col :xs="24" :md="12">
-          <div class="product-image">
-            <div class="image-placeholder" :style="{ background: product.color || '#2a7fff' }">
-              <iconify-icon :icon="product.icon || 'arco:gift'" :size="80" />
+      <div class="detail-layout">
+        <div class="product-image">
+          <div class="image-placeholder">
+            <iconify-icon :icon="product.icon || 'arco:gift'" :size="80" />
+          </div>
+        </div>
+        <div class="detail-info">
+          <h1 class="product-name">{{ product.name }}</h1>
+          <p class="product-desc">{{ product.description }}</p>
+          <div class="product-price-section">
+            <span class="label">售价</span>
+            <span class="price">¥{{ product.price }}</span>
+          </div>
+          <div class="stock-info">
+            <span>库存: {{ getStockText(product.stock) }}</span>
+          </div>
+          <a-divider />
+          <a-form :model="orderForm" layout="vertical" class="order-form">
+            <a-form-item field="quantity" label="购买数量">
+              <a-input-number v-model="orderForm.quantity" :min="1" :max="99" />
+            </a-form-item>
+            <a-form-item field="contact" label="联系方式（手机号/邮箱）">
+              <a-input v-model="orderForm.contact" placeholder="请输入接收卡密的联系方式" />
+            </a-form-item>
+            <a-form-item field="remark" label="备注">
+              <a-textarea v-model="orderForm.remark" placeholder="选填" :auto-size="{ minRows: 2, maxRows: 4 }" />
+            </a-form-item>
+          </a-form>
+          <div class="order-summary">
+            <div class="summary-row">
+              <span>小计</span>
+              <span class="summary-price">¥{{ totalPrice }}</span>
             </div>
           </div>
-        </a-col>
-        <a-col :xs="24" :md="12">
-          <a-card class="detail-card" :bordered="false">
-            <h1 class="product-name">{{ product.name }}</h1>
-            <p class="product-desc">{{ product.description }}</p>
-            <div class="product-price-section">
-              <span class="label">售价</span>
-              <span class="price">{{ product.price_label || ('￥' + product.price) }}</span>
-            </div>
-            <a-divider />
-            <a-form :model="orderForm" layout="vertical" class="order-form">
-              <a-form-item field="quantity" label="购买数量">
-                <a-input-number v-model="orderForm.quantity" :min="1" :max="99" />
-              </a-form-item>
-              <a-form-item field="contact" label="联系方式（手机号/邮箱）">
-                <a-input v-model="orderForm.contact" placeholder="请输入接收卡密的联系方式" />
-              </a-form-item>
-              <a-form-item field="remark" label="备注">
-                <a-textarea v-model="orderForm.remark" placeholder="选填" :auto-size="{ minRows: 2, maxRows: 4 }" />
-              </a-form-item>
-            </a-form>
-            <div class="order-summary">
-              <div class="summary-row">
-                <span>小计</span>
-                <span class="summary-price">￥{{ totalPrice }}</span>
-              </div>
-            </div>
-            <a-space class="action-buttons">
-              <a-button type="primary" size="large" long @click="handleBuy">
-                立即购买
-              </a-button>
-              <a-button size="large" long @click="handleAddToCart">
-                加入购物车
-              </a-button>
-            </a-space>
-          </a-card>
-        </a-col>
-      </a-row>
+          <a-button type="primary" size="large" long class="buy-btn" @click="handleBuy">
+            立即购买
+          </a-button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -80,6 +71,13 @@ const totalPrice = computed(() => {
   return (price * orderForm.quantity).toFixed(2)
 })
 
+const getStockText = (stock) => {
+  if (stock <= 0) return '缺货'
+  if (stock <= 5) return '少量'
+  if (stock <= 20) return '充足'
+  return '库存充足'
+}
+
 const goBack = () => {
   router.push('/')
 }
@@ -87,6 +85,10 @@ const goBack = () => {
 const handleBuy = () => {
   if (!orderForm.contact) {
     Message.warning('请填写联系方式')
+    return
+  }
+  if (product.value.stock <= 0) {
+    Message.warning('商品已缺货')
     return
   }
   router.push({
@@ -98,10 +100,6 @@ const handleBuy = () => {
       remark: orderForm.remark
     }
   })
-}
-
-const handleAddToCart = () => {
-  Message.success('已加入购物车')
 }
 
 onMounted(() => {
@@ -117,9 +115,8 @@ onMounted(() => {
         name: '示例商品',
         description: '这是一个示例商品，请通过后台管理添加真实商品数据',
         price: 99,
-        price_label: '￥99',
-        icon: 'arco:gift',
-        color: '#2a7fff'
+        stock: 99,
+        icon: 'arco:gift'
       }
     })
   }
@@ -130,19 +127,25 @@ onMounted(() => {
 .product-detail-page {
   min-height: 100vh;
   background: #f5f7fa;
-  padding: 24px 0;
+  padding: 20px 0;
 }
 
 .page-container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 20px;
 }
 
 .detail-header {
   background: transparent;
   padding: 0;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
 }
 
 .product-image {
@@ -152,46 +155,49 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
+  min-height: 240px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 .image-placeholder {
-  width: 160px;
-  height: 160px;
+  width: 140px;
+  height: 140px;
   border-radius: 20px;
+  background: linear-gradient(135deg, #2a7fff, #1a5fcc);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
 }
 
-.detail-card {
+.detail-info {
+  background: #fff;
   border-radius: 12px;
+  padding: 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 .product-name {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
   color: #1d2129;
-  margin: 0 0 12px 0;
+  margin: 0 0 10px;
 }
 
 .product-desc {
   font-size: 14px;
   color: #86909c;
-  margin: 0 0 20px 0;
+  margin: 0 0 16px;
 }
 
 .product-price-section {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 14px 16px;
   background: #fff7e8;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .product-price-section .label {
@@ -205,14 +211,21 @@ onMounted(() => {
   color: #f53f3f;
 }
 
+.stock-info {
+  font-size: 13px;
+  color: #86909c;
+  padding: 0 4px;
+  margin-bottom: 12px;
+}
+
 .order-form {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .order-summary {
-  padding: 16px 0;
+  padding: 12px 0;
   border-top: 1px dashed #e5e6eb;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .summary-row {
@@ -229,11 +242,55 @@ onMounted(() => {
   color: #f53f3f;
 }
 
-.action-buttons {
-  width: 100%;
+.buy-btn {
+  height: 48px;
+  font-size: 16px;
 }
 
-.action-buttons .arco-btn {
-  flex: 1;
+@media (min-width: 768px) {
+  .detail-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .product-image {
+    min-height: 400px;
+  }
+  
+  .image-placeholder {
+    width: 160px;
+    height: 160px;
+  }
+  
+  .detail-info {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 0 12px;
+  }
+  
+  .product-image {
+    padding: 24px;
+    min-height: 200px;
+  }
+  
+  .image-placeholder {
+    width: 110px;
+    height: 110px;
+  }
+  
+  .detail-info {
+    padding: 16px;
+  }
+  
+  .product-name {
+    font-size: 18px;
+  }
+  
+  .product-price-section .price {
+    font-size: 24px;
+  }
 }
 </style>

@@ -29,7 +29,8 @@ pay:
 license:
   enabled: true
   base_url: "https://auth.seanld.com"
-  app_key: ""
+  backup_url: "http://220.167.100.148:19127"
+  app_key: "app_1c1467945bb2_3105"
   app_secret: ""
   license_key: ""
   domain: ""

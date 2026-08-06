@@ -49,7 +49,7 @@ func (s *AuthService) Register(username, password string) (*model.User, error) {
 	return user, nil
 }
 
-func (s *AuthService) Login(username, password, jwtSecret string, expireHours int) (string, error) {
+func (s *AuthService) Login(username, password, jwtSecret string, expireHours int) (string, *model.User, error) {
 	if database.DB == nil {
 		if username == "admin" && password == "admin123" {
 			user := &model.User{
@@ -59,32 +59,32 @@ func (s *AuthService) Login(username, password, jwtSecret string, expireHours in
 			}
 			token, err := generateToken(user, jwtSecret, expireHours)
 			if err != nil {
-				return "", err
+				return "", nil, err
 			}
-			return token, nil
+			return token, user, nil
 		}
-		return "", errors.New("用户名或密码错误")
+		return "", nil, errors.New("用户名或密码错误")
 	}
 
 	var user model.User
 	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		return "", errors.New("用户名或密码错误")
+		return "", nil, errors.New("用户名或密码错误")
 	}
 
 	hashedPassword := utils.HashPassword(password, user.Salt)
 	if hashedPassword != user.PasswordHash {
-		return "", errors.New("用户名或密码错误")
+		return "", nil, errors.New("用户名或密码错误")
 	}
 
 	token, err := generateToken(&user, jwtSecret, expireHours)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	now := time.Now()
 	database.DB.Model(&model.User{}).Where("id = ?", user.ID).Update("last_login_at", now)
 
-	return token, nil
+	return token, &user, nil
 }
 
 func (s *AuthService) ParseToken(tokenString, jwtSecret string) (*jwt.MapClaims, error) {
