@@ -46,61 +46,61 @@ const routes = [
         path: 'dashboard',
         name: 'dashboard',
         component: () => import('../views/admin/Dashboard.vue'),
-        meta: { title: '仪表盘', icon: 'arco:dashboard' }
+        meta: { title: '仪表盘' }
       },
       {
         path: 'categories',
         name: 'categories',
         component: () => import('../views/admin/Categories.vue'),
-        meta: { title: '商品分类', icon: 'arco:menu' }
+        meta: { title: '商品分类' }
       },
       {
         path: 'products',
         name: 'products',
         component: () => import('../views/admin/Products.vue'),
-        meta: { title: '商品管理', icon: 'arco:apps' }
+        meta: { title: '商品管理' }
       },
       {
         path: 'cards',
         name: 'cards',
         component: () => import('../views/admin/Cards.vue'),
-        meta: { title: '卡密管理', icon: 'arco:file' }
+        meta: { title: '卡密管理' }
       },
       {
         path: 'orders',
         name: 'orders',
         component: () => import('../views/admin/Orders.vue'),
-        meta: { title: '订单管理', icon: 'arco:order' }
+        meta: { title: '订单管理' }
       },
       {
         path: 'payments',
         name: 'payments',
-        component: () => import('../views/admin/Payments.vue'),
-        meta: { title: '支付接口', icon: 'arco:pay-circle' }
+        component: () => import('../views/admin/PaymentSettings.vue'),
+        meta: { title: '支付接口' }
       },
       {
         path: 'emails',
         name: 'emails',
-        component: () => import('../views/admin/Emails.vue'),
-        meta: { title: '邮件系统', icon: 'arco:mail' }
+        component: () => import('../views/admin/MailSettings.vue'),
+        meta: { title: '邮件系统' }
       },
       {
         path: 'nodes',
         name: 'nodes',
-        component: () => import('../views/admin/Nodes.vue'),
-        meta: { title: '节点管理', icon: 'arco:cloud' }
+        component: () => import('../views/admin/NodeSettings.vue'),
+        meta: { title: '节点管理' }
       },
       {
         path: 'logs',
         name: 'logs',
         component: () => import('../views/admin/Logs.vue'),
-        meta: { title: '日志系统', icon: 'arco:file-one' }
+        meta: { title: '日志系统' }
       },
       {
         path: 'settings',
         name: 'settings',
         component: () => import('../views/admin/Settings.vue'),
-        meta: { title: '系统设置', icon: 'arco:settings' }
+        meta: { title: '系统设置' }
       }
     ]
   },
