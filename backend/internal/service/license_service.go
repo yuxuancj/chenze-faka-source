@@ -77,11 +77,7 @@ func NewLicenseService(cfg *model.LicenseConfig) *LicenseService {
 		cfg.AppKey = "app_1c1467945bb2_3105"
 	}
 	if cfg.AppSecret == "" {
-		if v := os.Getenv("LICENSE_APP_SECRET"); v != "" {
-			cfg.AppSecret = v
-		} else if data, err := os.ReadFile("license.secret"); err == nil {
-			cfg.AppSecret = strings.TrimSpace(string(data))
-		}
+		cfg.AppSecret = "sk_live_d024ea27e00545f3f7bf67395652f69f"
 	}
 	if cfg.Interval <= 0 {
 		cfg.Interval = 3600
