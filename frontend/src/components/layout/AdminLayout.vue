@@ -170,9 +170,19 @@ const handleOpenChange = (keys) => {
 }
 
 const handleMenuItemClick = (key) => {
-  const path = Array.isArray(key) ? key[0] : key
+  if (!key) return
+  let path = ''
+  if (Array.isArray(key)) {
+    path = key.find(k => typeof k === 'string' && k.startsWith('/')) || ''
+  } else if (typeof key === 'string') {
+    path = key
+  }
   if (path && path !== route.path) {
-    router.push(path)
+    router.push(path).then(() => {
+      if (window.innerWidth < 992) {
+        collapsed.value = true
+      }
+    }).catch(() => {})
   }
 }
 

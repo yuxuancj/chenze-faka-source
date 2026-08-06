@@ -111,6 +111,7 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 
 		install := api.Group("/install")
 		{
+			install.GET("/env", authCtrl.CheckEnv)
 			install.GET("/license-status", authCtrl.GetLicenseStatus)
 			install.POST("/verify-license", authCtrl.VerifyLicense)
 			install.POST("/test-database", authCtrl.TestDatabase)

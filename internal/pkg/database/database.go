@@ -101,7 +101,13 @@ func IsAvailable() bool {
 	return DB != nil
 }
 
-func TestConnection(cfg *model.DatabaseConfig) (string, error) {
+type TestResult struct {
+	Version    string `json:"version"`
+	HasData    bool   `json:"has_data"`
+	TableCount int    `json:"table_count"`
+}
+
+func TestConnection(cfg *model.DatabaseConfig) (*TestResult, error) {
 	var testDB *gorm.DB
 	var err error
 
@@ -113,17 +119,17 @@ func TestConnection(cfg *model.DatabaseConfig) (string, error) {
 	}
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	sqlDB, err := testDB.DB()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer sqlDB.Close()
 
 	if err := sqlDB.Ping(); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var version string
@@ -136,5 +142,27 @@ func TestConnection(cfg *model.DatabaseConfig) (string, error) {
 		version = "3.x"
 	}
 
-	return version, nil
+	hasData := false
+	tableCount := 0
+
+	if cfg.Driver != "sqlite" && cfg.DBName != "" {
+		row := sqlDB.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()")
+		if err := row.Scan(&tableCount); err == nil && tableCount > 0 {
+			hasData = true
+		}
+	} else if cfg.Driver == "sqlite" {
+		var count int
+		if err := sqlDB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&count); err == nil {
+			tableCount = count
+			if count > 0 {
+				hasData = true
+			}
+		}
+	}
+
+	return &TestResult{
+		Version:    version,
+		HasData:    hasData,
+		TableCount: tableCount,
+	}, nil
 }

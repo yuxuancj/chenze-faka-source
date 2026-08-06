@@ -189,11 +189,34 @@
         </a-button>
       </div>
     </div>
+
+    <a-modal
+      v-model:visible="showDataDialog"
+      title="检测到数据库已有数据"
+      :footer="false"
+      :mask-closable="false"
+      unmount-on-close
+    >
+      <div class="data-dialog-content">
+        <iconify-icon icon="arco:exclamation-circle-fill" :size="40" class="warning-icon" />
+        <p class="dialog-message">
+          检测到数据库已有 {{ dbTableCount }} 张数据表，请选择操作方式：
+        </p>
+        <div class="dialog-actions">
+          <a-button type="outline" size="large" @click="handleDataDialogAction('skip')">
+            跳过安装（保留现有数据）
+          </a-button>
+          <a-button type="primary" size="large" status="warning" @click="handleDataDialogAction('overwrite')">
+            覆盖安装（清空数据）
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, computed, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { api } from '../api'
@@ -208,6 +231,10 @@ const licenseVerified = ref(false)
 const testing = ref(false)
 const dbTestSuccess = ref(false)
 const dbTestResult = ref(null)
+const dbHasData = ref(false)
+const dbTableCount = ref(0)
+const showDataDialog = ref(false)
+const pendingDataAction = ref(null)
 
 const stepLabels = [
   { title: '许可协议', desc: '阅读并接受协议' },
@@ -220,6 +247,7 @@ const stepLabels = [
 
 const mysqlStatus = ref('检测中')
 const mysqlVersion = ref('')
+const envChecked = ref(false)
 
 const checkMysqlVersion = (version) => {
   if (!version) return { status: '异常', text: '未知版本' }
@@ -235,14 +263,45 @@ const checkMysqlVersion = (version) => {
 const envItems = computed(() => [
   { label: '操作系统', value: 'Linux', status: '正常' },
   { label: 'Go版本', value: '1.21+', status: '正常' },
-  { label: 'MySQL', value: mysqlVersion.value || '5.7+ / 8.0+', status: mysqlStatus.value },
+  { label: 'MySQL', value: mysqlVersion.value || '待检测', status: mysqlStatus.value },
   { label: '内存', value: '2GB+', status: '正常' }
 ])
 
 const getTagColor = (status) => {
   if (status === '正常') return 'green'
   if (status === '检测中') return 'orange'
+  if (status === '未安装') return 'gray'
   return 'red'
+}
+
+const runEnvCheck = async () => {
+  if (envChecked.value) return
+  envChecked.value = true
+  mysqlStatus.value = '检测中'
+  try {
+    const res = await api.checkEnv()
+    if (res.code === 0 && res.data) {
+      const v = res.data.mysql_version || ''
+      const s = res.data.mysql_status || '异常'
+      if (s === '正常') {
+        const result = checkMysqlVersion(v)
+        mysqlVersion.value = result.text
+        mysqlStatus.value = result.status
+      } else if (v === '未安装') {
+        mysqlVersion.value = '未安装'
+        mysqlStatus.value = '未安装'
+      } else {
+        mysqlVersion.value = v || '未知版本'
+        mysqlStatus.value = s || '异常'
+      }
+    } else {
+      mysqlVersion.value = '未安装'
+      mysqlStatus.value = '未安装'
+    }
+  } catch (e) {
+    mysqlVersion.value = '未安装'
+    mysqlStatus.value = '未安装'
+  }
 }
 
 const isMobile = ref(window.innerWidth < 768)
@@ -297,6 +356,7 @@ const testDatabaseConnection = async () => {
 
   testing.value = true
   dbTestResult.value = null
+  dbTestSuccess.value = false
   try {
     const res = await api.testDatabase({
       host: dbForm.host,
@@ -306,13 +366,28 @@ const testDatabaseConnection = async () => {
       password: dbForm.password
     })
     if (res.code === 0) {
-      dbTestSuccess.value = true
-      dbTestResult.value = { success: true, message: '数据库连接成功' }
       const ver = res.data?.version || ''
       const result = checkMysqlVersion(ver)
       mysqlVersion.value = result.text
       mysqlStatus.value = result.status
-      Message.success('数据库连接成功')
+
+      const hasData = res.data?.has_data || false
+      const tableCount = res.data?.table_count || 0
+      dbHasData.value = hasData
+      dbTableCount.value = tableCount
+
+      if (hasData) {
+        dbTestResult.value = {
+          success: true,
+          message: `连接正常，检测到数据库已有 ${tableCount} 张数据表`
+        }
+        showDataDialog.value = true
+        pendingDataAction.value = null
+      } else {
+        dbTestSuccess.value = true
+        dbTestResult.value = { success: true, message: '连接正常，数据库为空' }
+        Message.success('数据库连接成功，数据库为空')
+      }
     } else {
       dbTestSuccess.value = false
       dbTestResult.value = { success: false, message: res.message || '数据库连接失败' }
@@ -328,6 +403,26 @@ const testDatabaseConnection = async () => {
     Message.error(e.message || '数据库连接失败，请检查账号密码是否正确')
   } finally {
     testing.value = false
+  }
+}
+
+const handleDataDialogAction = (action) => {
+  showDataDialog.value = false
+  pendingDataAction.value = action
+  if (action === 'skip') {
+    dbTestSuccess.value = true
+    dbTestResult.value = {
+      success: true,
+      message: '连接正常，将跳过安装（保留现有数据）'
+    }
+    Message.info('已选择跳过安装，保留现有数据')
+  } else if (action === 'overwrite') {
+    dbTestSuccess.value = true
+    dbTestResult.value = {
+      success: true,
+      message: '连接正常，将覆盖安装（清空数据）'
+    }
+    Message.warning('已选择覆盖安装，将清空现有数据')
   }
 }
 
@@ -358,6 +453,13 @@ const nextStep = async () => {
   if (currentStep.value === 0 && !agreed.value) {
     Message.warning('请先同意许可协议')
     return
+  }
+
+  if (currentStep.value === 1 && !envChecked.value) {
+    await runEnvCheck()
+    if (mysqlStatus.value === '异常') {
+      Message.warning('环境检测异常，请检查MySQL版本是否为5.7+')
+    }
   }
 
   if (currentStep.value === 2 && !dbTestSuccess.value) {
@@ -448,6 +550,12 @@ onMounted(async () => {
     }
   } catch (e) {
     // 未安装，继续显示安装页
+  }
+})
+
+watch(currentStep, (step) => {
+  if (step === 1 && !envChecked.value) {
+    runEnvCheck()
   }
 })
 </script>

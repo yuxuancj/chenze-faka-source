@@ -4,7 +4,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
+	"regexp"
+	"runtime"
 
 	"chenze-faka/internal/model"
 	"chenze-faka/internal/pkg/captcha"
@@ -13,8 +16,12 @@ import (
 	"chenze-faka/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"gopkg.in/yaml.v3"
 )
+
+var mysqlVersionRegexp = regexp.MustCompile(`^(\d+)\.(\d+)`)
 
 type AuthController struct {
 	authService  *service.AuthService
@@ -255,6 +262,74 @@ type TestDatabaseRequest struct {
 	Password string `json:"password"`
 }
 
+type EnvCheckResponse struct {
+	OS           string `json:"os"`
+	GOVersion    string `json:"go_version"`
+	MySQLStatus  string `json:"mysql_status"`
+	MySQLVersion string `json:"mysql_version"`
+	Memory       string `json:"memory"`
+}
+
+func (h *AuthController) CheckEnv(c *gin.Context) {
+	resp := EnvCheckResponse{
+		OS:           runtime.GOOS,
+		GOVersion:    runtime.Version(),
+		MySQLStatus:  "未安装",
+		MySQLVersion: "未安装",
+		Memory:       "2GB+",
+	}
+
+	dsns := []string{
+		"root:@tcp(localhost:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
+		"root:@tcp(127.0.0.1:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
+	}
+
+	for _, dsn := range dsns {
+		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		if err != nil {
+			continue
+		}
+		sqlDB, err := db.DB()
+		if err != nil {
+			continue
+		}
+		if err := sqlDB.Ping(); err != nil {
+			sqlDB.Close()
+			continue
+		}
+		defer sqlDB.Close()
+
+		var version string
+		row := sqlDB.QueryRow("SELECT VERSION()")
+		if err := row.Scan(&version); err != nil {
+			version = "unknown"
+		}
+
+		resp.MySQLVersion = version
+		resp.MySQLStatus = checkMysqlVersionStatus(version)
+		return
+	}
+
+	response.Success(c, resp)
+}
+
+func checkMysqlVersionStatus(version string) string {
+	match := mysqlVersionRegexp.FindStringSubmatch(version)
+	if match == nil {
+		return "异常"
+	}
+	var major, minor int
+	fmt.Sscanf(match[1], "%d", &major)
+	fmt.Sscanf(match[2], "%d", &minor)
+	if major >= 8 {
+		return "正常"
+	}
+	if major == 5 && minor >= 7 {
+		return "正常"
+	}
+	return "异常"
+}
+
 func (h *AuthController) TestDatabase(c *gin.Context) {
 	var req TestDatabaseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -278,6 +353,7 @@ func (h *AuthController) TestDatabase(c *gin.Context) {
 	}
 
 	cfg := &model.DatabaseConfig{
+		Driver:   "mysql",
 		Host:     req.Host,
 		Port:     req.Port,
 		DBName:   req.Database,
@@ -285,15 +361,17 @@ func (h *AuthController) TestDatabase(c *gin.Context) {
 		Password: req.Password,
 	}
 
-	version, err := database.TestConnection(cfg)
+	result, err := database.TestConnection(cfg)
 	if err != nil {
 		response.Fail(c, "数据库连接失败: "+err.Error())
 		return
 	}
 
 	response.Success(c, gin.H{
-		"message": "数据库连接成功",
-		"version": version,
+		"message":     "数据库连接成功",
+		"version":     result.Version,
+		"has_data":    result.HasData,
+		"table_count": result.TableCount,
 	})
 }
 

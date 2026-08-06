@@ -114,7 +114,8 @@ export const api = {
   install: (data) => request.post('/api/install', data),
   getLicenseStatus: () => request.get('/api/install/license-status'),
   verifyLicense: (data) => request.post('/api/install/verify-license', data),
-  testDatabase: (data) => request.post('/api/install/test-database', data)
+  testDatabase: (data) => request.post('/api/install/test-database', data),
+  checkEnv: () => request.get('/api/install/env')
 }
 
 export default request
