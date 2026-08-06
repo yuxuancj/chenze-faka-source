@@ -30,13 +30,13 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 	r.Use(installMw.Handle())
 	r.Use(licenseMw.Handle())
 
-	webContent, err := fs.Sub(webFS, "web")
+	webContent, err := fs.Sub(webFS, "assets")
 	if err == nil {
 		_, assetsErr := fs.Sub(webContent, "assets")
 		if assetsErr == nil {
 			r.GET("/assets/*path", func(c *gin.Context) {
 				filePath := strings.TrimPrefix(c.Param("path"), "/")
-				data, err := webFS.ReadFile("web/assets/" + filePath)
+				data, err := webFS.ReadFile("assets/assets/" + filePath)
 				if err != nil {
 					c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 					return
@@ -56,7 +56,7 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 				return
 			}
 
-			serveEmbeddedFile(c, webFS, "web/index.html")
+			serveEmbeddedFile(c, webFS, "assets/index.html")
 		})
 	} else {
 		r.NoRoute(func(c *gin.Context) {
@@ -70,7 +70,7 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 				return
 			}
 
-			c.File("web/index.html")
+			c.File("assets/index.html")
 		})
 	}
 
