@@ -1,79 +1,73 @@
 package middleware
 
 import (
-	"chenze-faka/internal/license"
 	"net/http"
 	"strings"
+
+	"chenze-faka/internal/pkg/response"
+	"chenze-faka/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type LicenseMiddleware struct {
-	svc *license.Service
+	svc *service.LicenseService
 }
 
-func NewLicenseMiddleware(svc *license.Service) *LicenseMiddleware {
+func NewLicenseMiddleware(svc *service.LicenseService) *LicenseMiddleware {
 	return &LicenseMiddleware{svc: svc}
 }
 
 func (m *LicenseMiddleware) Handle() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !m.svc.IsVerified() && !m.svc.IsGracePeriodValid() {
-			path := c.Request.URL.Path
+		if m.svc == nil || m.svc.IsVerified() || m.svc.IsGracePeriodValid() {
+			c.Next()
+			return
+		}
 
-			if isPublicPath(path) {
-				c.Next()
-				return
-			}
+		path := c.Request.URL.Path
 
-			if path == "/install-page" || path == "/install" || strings.HasPrefix(path, "/static/") {
-				c.Next()
-				return
-			}
+		if isLicensePublicPath(path) {
+			c.Next()
+			return
+		}
 
-			if strings.HasPrefix(path, "/admin/") {
-				c.Redirect(http.StatusFound, "/admin/login.html")
-				return
-			}
-
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "system license verification failed, please contact admin",
-			})
+		if strings.HasPrefix(path, "/api/") {
+			response.FailWithCode(c, http.StatusUnauthorized, "系统授权验证失败,请联系管理员")
 			c.Abort()
 			return
 		}
 
-		c.Next()
+		c.Redirect(http.StatusFound, "/install")
+		c.Abort()
 	}
 }
 
-func isPublicPath(path string) bool {
+func isLicensePublicPath(path string) bool {
 	publicPaths := []string{
 		"/",
-		"/index.html",
+		"/install",
+		"/install-page",
 		"/static/",
+		"/api/site/config",
 		"/api/products",
 		"/api/products/on-shelf",
+		"/api/products/on-shelf-grouped",
+		"/api/products/",
 		"/api/orders/query",
-		"/api/site/config",
-		"/admin/login.html",
-		"/install-page",
-		"/install",
+		"/api/orders/",
+		"/api/auth/login",
+		"/api/auth/register",
+		"/api/cards/product/",
 	}
 
 	for _, p := range publicPaths {
-		if p == "/" && (path == "/" || path == "/index.html") {
+		if p == "/" && path == "/" {
 			return true
 		}
 		if strings.HasPrefix(path, p) {
 			return true
 		}
 	}
-
 	return false
-}
-
-func isInstallPath(path string) bool {
-	return path == "/install-page" || path == "/install" || strings.HasPrefix(path, "/install/")
 }

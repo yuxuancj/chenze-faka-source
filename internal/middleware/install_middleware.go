@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"chenze-faka/internal/pkg/response"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,15 +31,15 @@ func (m *InstallMiddleware) Handle() gin.HandlerFunc {
 		}
 
 		if isAPIRequest(c) {
-			c.JSON(http.StatusOK, gin.H{
-				"code":    1000,
-				"message": "system not installed",
+			c.JSON(http.StatusOK, response.Response{
+				Code:    1000,
+				Message: "系统未安装",
 			})
 			c.Abort()
 			return
 		}
 
-		c.Redirect(http.StatusFound, "/install-page")
+		c.Redirect(http.StatusFound, "/install")
 		c.Abort()
 	}
 }
@@ -50,10 +52,9 @@ func isInstalled() bool {
 func isAllowedWhenNotInstalled(path string) bool {
 	allowedPrefixes := []string{
 		"/install",
-		"/install-page",
 		"/static/",
+		"/assets/",
 		"/favicon.ico",
-		"/admin/login",
 		"/api/install",
 	}
 
@@ -62,7 +63,6 @@ func isAllowedWhenNotInstalled(path string) bool {
 			return true
 		}
 	}
-
 	return false
 }
 

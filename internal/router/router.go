@@ -1,186 +1,268 @@
 package router
 
 import (
-	"chenze-faka/internal/config"
-	"chenze-faka/internal/handler"
-	"chenze-faka/internal/license"
+	"chenze-faka/internal/controller"
 	"chenze-faka/internal/middleware"
-	"chenze-faka/internal/utils"
-	"os"
-	"path/filepath"
+	"chenze-faka/internal/model"
+	"chenze-faka/internal/pkg/response"
+	"chenze-faka/internal/service"
+	"embed"
+	"io/fs"
+	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Setup(cfg *config.Config, licenseSvc *license.Service) *gin.Engine {
+func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS) *gin.Engine {
 	r := gin.Default()
 
-	installHandler := handler.NewInstallHandler(cfg, licenseSvc)
-	authHandler := handler.NewAuthHandler(cfg)
-	productHandler := handler.NewProductHandler()
-	cardHandler := handler.NewCardHandler()
-	orderHandler := handler.NewOrderHandler(cfg)
-	systemHandler := handler.NewSystemHandler(cfg, licenseSvc)
+	productCtrl := controller.NewProductController()
+	orderCtrl := controller.NewOrderController(cfg.Pay)
+	cardCtrl := controller.NewCardController()
+	authCtrl := controller.NewAuthController(cfg.JWT.Secret, cfg.JWT.ExpireTime, cfg.System.SiteName, &cfg.License)
+	adminCtrl := controller.NewAdminController(licenseSvc)
 
-	authMiddleware := middleware.NewAuthMiddleware(cfg.JWT)
-	licenseMiddleware := middleware.NewLicenseMiddleware(licenseSvc)
-	installMiddleware := middleware.NewInstallMiddleware()
+	authMw := middleware.NewAuthMiddleware(cfg.JWT.Secret, cfg.JWT.ExpireTime)
+	licenseMw := middleware.NewLicenseMiddleware(licenseSvc)
+	installMw := middleware.NewInstallMiddleware()
 
-	webDir := getWebDir()
+	r.Use(installMw.Handle())
+	r.Use(licenseMw.Handle())
 
-	// Install check middleware - highest priority, runs on ALL requests
-	r.Use(installMiddleware.Handle())
+	webContent, err := fs.Sub(webFS, "assets")
+	if err == nil {
+		_, assetsErr := fs.Sub(webContent, "assets")
+		if assetsErr == nil {
+			r.GET("/assets/*path", func(c *gin.Context) {
+				filePath := strings.TrimPrefix(c.Param("path"), "/")
+				data, err := webFS.ReadFile("assets/assets/" + filePath)
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+					return
+				}
+				contentType := detectContentType(filePath)
+				c.Data(http.StatusOK, contentType, data)
+			})
+		}
+		r.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
 
-	// License middleware - blocks API when license invalid
-	r.Use(licenseMiddleware.Handle())
+			if strings.HasPrefix(path, "/api/") {
+				c.JSON(http.StatusNotFound, response.Response{
+					Code:    1,
+					Message: "接口不存在",
+				})
+				return
+			}
 
-	r.Static("/static", filepath.Join(webDir, "static"))
+			serveEmbeddedFile(c, webFS, "assets/index.html")
+		})
+	} else {
+		r.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
 
-	// Install page routes (always accessible, even when not installed)
-	r.GET("/install-page", func(c *gin.Context) {
-		c.File(filepath.Join(webDir, "install.html"))
-	})
+			if strings.HasPrefix(path, "/api/") {
+				c.JSON(http.StatusNotFound, response.Response{
+					Code:    1,
+					Message: "接口不存在",
+				})
+				return
+			}
 
-	// /install redirects to install-page for HTML display
-	r.GET("/install", func(c *gin.Context) {
-		c.Redirect(302, "/install-page")
-	})
+			c.File("assets/index.html")
+		})
+	}
 
-	// Auth install API routes
-	r.GET("/install/license-status", installHandler.GetLicenseStatus)
-	r.POST("/install/verify-license", installHandler.VerifyLicense)
-	r.POST("/install/test-db", installHandler.TestDatabase)
-	r.POST("/install", installHandler.Install)
-
-	// Homepage
-	r.GET("/", func(c *gin.Context) {
-		c.File(filepath.Join(webDir, "index.html"))
-	})
-
-	// Order page
-	r.GET("/order", func(c *gin.Context) {
-		c.File(filepath.Join(webDir, "order.html"))
-	})
-
-	// Compatibility with old-style PHP URLs
-	r.GET("/order.php", func(c *gin.Context) {
-		c.Redirect(302, "/order" + "?" + c.Request.URL.RawQuery)
-	})
-
-	// Query page
-	r.GET("/query", func(c *gin.Context) {
-		c.File(filepath.Join(webDir, "query.html"))
-	})
-
-	r.GET("/query.php", func(c *gin.Context) {
-		c.Redirect(302, "/query")
-	})
-
-	// Admin routes
-	r.GET("/admin", func(c *gin.Context) {
-		c.Redirect(302, "/admin/index.html")
-	})
-
-	r.GET("/admin/index.html", func(c *gin.Context) {
-		c.File(filepath.Join(webDir, "admin", "index.html"))
-	})
-
-	r.GET("/admin/login.html", func(c *gin.Context) {
-		c.File(filepath.Join(webDir, "admin", "login.html"))
-	})
-
-	// API routes
 	api := r.Group("/api")
 	{
-		api.GET("/site/config", authHandler.GetSiteConfig)
-		api.GET("/system/status", systemHandler.GetSystemStatus)
-		api.GET("/system/license", systemHandler.GetLicenseStatus)
-		api.POST("/system/license/verify", systemHandler.VerifyLicense)
-		api.GET("/system/version/check", systemHandler.CheckVersion)
+		api.GET("/site/config", authCtrl.GetSiteConfig)
+
+		api.GET("/captcha", authCtrl.GetCaptcha)
 
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
-			auth.GET("/profile", authMiddleware.AuthRequired(), authHandler.GetProfile)
+			auth.POST("/login", authCtrl.Login)
+			auth.POST("/register", authCtrl.Register)
+			auth.GET("/profile", authMw.AuthRequired(), authCtrl.GetProfile)
 		}
 
 		products := api.Group("/products")
 		{
-			products.GET("", productHandler.List)
-			products.GET("/on-shelf", productHandler.ListOnShelf)
-			products.GET("/on-shelf-grouped", productHandler.ListOnShelfGrouped)
-			products.GET("/:id", productHandler.GetByID)
+			products.GET("", productCtrl.List)
+			products.GET("/on-shelf", productCtrl.OnShelf)
+			products.GET("/on-shelf-grouped", productCtrl.OnShelfGrouped)
+			products.GET("/:id", productCtrl.GetByID)
 		}
 
 		orders := api.Group("/orders")
 		{
-			orders.POST("", orderHandler.CreateOrder)
-			orders.GET("/query", orderHandler.QueryOrder)
-			orders.GET("/:order_no", orderHandler.GetByOrderNo)
-			orders.POST("/notify", orderHandler.Notify)
-			orders.GET("/return", orderHandler.Return)
+			orders.POST("", orderCtrl.Create)
+			orders.GET("/query", orderCtrl.Query)
+			orders.GET("/:order_no", orderCtrl.GetByOrderNo)
+			orders.POST("/notify", orderCtrl.Notify)
+			orders.GET("/return", orderCtrl.Return)
 		}
 
-		admin := api.Group("/admin", authMiddleware.AuthRequired())
+		cards := api.Group("/cards")
 		{
+			cards.GET("/product/:id/count", cardCtrl.CountByProduct)
+		}
+
+		install := api.Group("/install")
+		{
+			install.GET("/license-status", authCtrl.GetLicenseStatus)
+			install.POST("/verify-license", authCtrl.VerifyLicense)
+			install.POST("/test-database", authCtrl.TestDatabase)
+			install.POST("", authCtrl.Install)
+		}
+
+		admin := api.Group("/admin", authMw.AuthRequired())
+		{
+			admin.GET("/system/status", adminCtrl.SystemStatus)
+			admin.GET("/system/license", adminCtrl.LicenseStatus)
+			admin.POST("/system/license/verify", adminCtrl.VerifyLicense)
+			admin.GET("/dashboard", adminCtrl.Dashboard)
+			admin.GET("/dashboard/order-status", adminCtrl.OrderStatusCounts)
+
+			categoryAdmin := admin.Group("/categories")
+			{
+				categoryAdmin.GET("", adminCtrl.CategoryList)
+				categoryAdmin.GET("/all", adminCtrl.CategoryAll)
+				categoryAdmin.POST("", adminCtrl.CategoryCreate)
+				categoryAdmin.PUT("", adminCtrl.CategoryUpdate)
+				categoryAdmin.DELETE("/:id", adminCtrl.CategoryDelete)
+			}
+
 			productAdmin := admin.Group("/products")
 			{
-				productAdmin.POST("", productHandler.Create)
-				productAdmin.PUT("", productHandler.Update)
-				productAdmin.DELETE("/:id", productHandler.Delete)
-				productAdmin.GET("", productHandler.List)
-				productAdmin.GET("/:id", productHandler.GetByID)
+				productAdmin.GET("", adminCtrl.ProductList)
+				productAdmin.POST("", adminCtrl.ProductCreate)
+				productAdmin.PUT("", adminCtrl.ProductUpdate)
+				productAdmin.DELETE("/:id", adminCtrl.ProductDelete)
 			}
 
 			cardAdmin := admin.Group("/cards")
 			{
-				cardAdmin.POST("/import", cardHandler.Import)
-				cardAdmin.GET("", cardHandler.List)
-				cardAdmin.GET("/:id", cardHandler.GetByID)
-				cardAdmin.DELETE("/:id", cardHandler.Delete)
-				cardAdmin.GET("/product/:product_id/count", cardHandler.CountByProduct)
+				cardAdmin.POST("/import", adminCtrl.CardImport)
+				cardAdmin.GET("", adminCtrl.CardList)
+				cardAdmin.DELETE("/:id", adminCtrl.CardDelete)
+				cardAdmin.GET("/export", adminCtrl.CardExport)
 			}
 
 			orderAdmin := admin.Group("/orders")
 			{
-				orderAdmin.GET("", orderHandler.List)
+				orderAdmin.GET("", adminCtrl.OrderList)
+				orderAdmin.GET("/logs", adminCtrl.OrderLogs)
+			}
+
+			paymentAdmin := admin.Group("/payments")
+			{
+				paymentAdmin.GET("", adminCtrl.PaymentList)
+				paymentAdmin.GET("/all", adminCtrl.PaymentAll)
+				paymentAdmin.POST("", adminCtrl.PaymentCreate)
+				paymentAdmin.PUT("", adminCtrl.PaymentUpdate)
+				paymentAdmin.DELETE("/:id", adminCtrl.PaymentDelete)
+			}
+
+			emailAdmin := admin.Group("/emails")
+			{
+				emailAdmin.GET("", adminCtrl.EmailList)
+				emailAdmin.POST("", adminCtrl.EmailCreate)
+				emailAdmin.PUT("", adminCtrl.EmailUpdate)
+				emailAdmin.DELETE("/:id", adminCtrl.EmailDelete)
+				emailAdmin.POST("/test/:id", adminCtrl.EmailTest)
+				emailAdmin.GET("/logs", adminCtrl.EmailLogs)
+			}
+
+			logAdmin := admin.Group("/logs")
+			{
+				logAdmin.GET("/operations", adminCtrl.OperationLogs)
+				logAdmin.GET("/logins", adminCtrl.LoginLogs)
+			}
+
+			nodeAdmin := admin.Group("/nodes")
+			{
+				nodeAdmin.GET("", adminCtrl.NodeList)
+				nodeAdmin.POST("", adminCtrl.NodeCreate)
+				nodeAdmin.PUT("", adminCtrl.NodeUpdate)
+				nodeAdmin.DELETE("/:id", adminCtrl.NodeDelete)
+				nodeAdmin.POST("/ping/:id", adminCtrl.NodePing)
+			}
+
+			siteAdmin := admin.Group("/settings")
+			{
+				siteAdmin.GET("", adminCtrl.GetSettings)
+				siteAdmin.PUT("", adminCtrl.UpdateSettings)
+			}
+
+			upgradeAdmin := admin.Group("/upgrade")
+			{
+				upgradeAdmin.GET("/version", adminCtrl.GetVersion)
+				upgradeAdmin.GET("/check", adminCtrl.CheckUpdate)
+				upgradeAdmin.POST("/upload", adminCtrl.UploadPackage)
+				upgradeAdmin.POST("/apply", adminCtrl.ApplyUpgrade)
+				upgradeAdmin.GET("/logs", adminCtrl.UpgradeLogs)
+			}
+
+			uploadAdmin := admin.Group("/upload")
+			{
+				uploadAdmin.POST("", adminCtrl.UploadFile)
+				uploadAdmin.GET("", adminCtrl.ListFiles)
+				uploadAdmin.GET("/:id", adminCtrl.GetFile)
+				uploadAdmin.DELETE("/:id", adminCtrl.DeleteFile)
 			}
 		}
 	}
 
-	// Fallback for undefined routes
-	r.NoRoute(func(c *gin.Context) {
-		path := c.Request.URL.Path
-
-		// API routes get JSON response
-		if len(path) >= 4 && path[:4] == "/api/" {
-			c.JSON(404, utils.FailResponse("not found"))
-			return
-		}
-
-		c.JSON(404, gin.H{"code": 404, "message": "not found"})
-	})
-
 	return r
 }
 
-func checkInstalled() bool {
-	lockFile := "install.lock"
-	_, err := os.Stat(lockFile)
-	return err == nil
+func serveEmbeddedFile(c *gin.Context, fsys embed.FS, name string) {
+	data, err := fsys.ReadFile(name)
+	if err != nil {
+		c.JSON(http.StatusNotFound, response.Response{
+			Code:    1,
+			Message: "页面不存在",
+		})
+		return
+	}
+
+	contentType := "text/html; charset=utf-8"
+	if strings.HasSuffix(name, ".js") {
+		contentType = "application/javascript; charset=utf-8"
+	} else if strings.HasSuffix(name, ".css") {
+		contentType = "text/css; charset=utf-8"
+	} else if strings.HasSuffix(name, ".png") {
+		contentType = "image/png"
+	} else if strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".jpeg") {
+		contentType = "image/jpeg"
+	} else if strings.HasSuffix(name, ".svg") {
+		contentType = "image/svg+xml"
+	} else if strings.HasSuffix(name, ".ico") {
+		contentType = "image/x-icon"
+	}
+
+	c.Data(http.StatusOK, contentType, data)
 }
 
-func getWebDir() string {
-	candidates := []string{
-		"web",
-		"assets/web",
-		"chenze_faka_web",
+func detectContentType(name string) string {
+	if strings.HasSuffix(name, ".js") {
+		return "application/javascript; charset=utf-8"
+	} else if strings.HasSuffix(name, ".css") {
+		return "text/css; charset=utf-8"
+	} else if strings.HasSuffix(name, ".png") {
+		return "image/png"
+	} else if strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".jpeg") {
+		return "image/jpeg"
+	} else if strings.HasSuffix(name, ".svg") {
+		return "image/svg+xml"
+	} else if strings.HasSuffix(name, ".ico") {
+		return "image/x-icon"
+	} else if strings.HasSuffix(name, ".map") {
+		return "application/json"
+	} else if strings.HasSuffix(name, ".json") {
+		return "application/json"
 	}
-	for _, d := range candidates {
-		if _, err := os.Stat(d); err == nil {
-			return d
-		}
-	}
-	return "web"
+	return "application/octet-stream"
 }

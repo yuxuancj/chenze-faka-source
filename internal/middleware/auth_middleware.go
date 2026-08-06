@@ -3,22 +3,24 @@ package middleware
 import (
 	"strings"
 
-	"chenze-faka/internal/config"
+	"chenze-faka/internal/model"
+	"chenze-faka/internal/pkg/response"
 	"chenze-faka/internal/service"
-	"chenze-faka/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthMiddleware struct {
 	authService *service.AuthService
-	jwtConfig   config.JWTConfig
+	jwtSecret   string
+	expireHours int
 }
 
-func NewAuthMiddleware(jwtConfig config.JWTConfig) *AuthMiddleware {
+func NewAuthMiddleware(jwtSecret string, expireHours int) *AuthMiddleware {
 	return &AuthMiddleware{
-		authService: service.NewAuthService(jwtConfig),
-		jwtConfig:   jwtConfig,
+		authService: service.NewAuthService(),
+		jwtSecret:   jwtSecret,
+		expireHours: expireHours,
 	}
 }
 
@@ -30,7 +32,7 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		}
 
 		if authHeader == "" {
-			utils.Unauthorized(c, "authorization required")
+			response.Unauthorized(c, "需要登录")
 			c.Abort()
 			return
 		}
@@ -40,9 +42,9 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			tokenString = authHeader[7:]
 		}
 
-		claims, err := m.authService.ParseToken(tokenString)
+		claims, err := m.authService.ParseToken(tokenString, m.jwtSecret)
 		if err != nil {
-			utils.Unauthorized(c, "invalid or expired token")
+			response.Unauthorized(c, "登录已过期,请重新登录")
 			c.Abort()
 			return
 		}
@@ -50,43 +52,43 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		userID := uint((*claims)["user_id"].(float64))
 		user, err := m.authService.GetUserByID(userID)
 		if err != nil {
-			utils.Unauthorized(c, "user not found")
-			c.Abort()
-			return
+			username := ""
+			if uname, ok := (*claims)["username"].(string); ok {
+				username = uname
+			}
+			role := "admin"
+			if r, ok := (*claims)["role"].(string); ok {
+				role = r
+			}
+			user = &model.User{
+				ID:       userID,
+				Username: username,
+				Role:     role,
+			}
 		}
 
 		c.Set("user", user)
 		c.Set("user_id", user.ID)
 		c.Set("username", user.Username)
+		c.Set("role", user.Role)
 		c.Next()
 	}
 }
 
-func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
+func (m *AuthMiddleware) AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			authHeader = c.Query("token")
-		}
-
-		if authHeader == "" {
-			c.Next()
+		user, exists := c.Get("user")
+		if !exists {
+			response.Unauthorized(c, "需要登录")
+			c.Abort()
 			return
 		}
 
-		tokenString := authHeader
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = authHeader[7:]
-		}
-
-		claims, err := m.authService.ParseToken(tokenString)
-		if err == nil {
-			userID := uint((*claims)["user_id"].(float64))
-			user, err := m.authService.GetUserByID(userID)
-			if err == nil {
-				c.Set("user", user)
-				c.Set("user_id", user.ID)
-			}
+		u := user.(*model.User)
+		if u.Role != model.RoleAdmin {
+			response.Forbidden(c, "权限不足")
+			c.Abort()
+			return
 		}
 
 		c.Next()

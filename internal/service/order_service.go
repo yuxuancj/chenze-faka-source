@@ -1,86 +1,72 @@
 package service
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
-	"fmt"
-	"sort"
-	"strings"
 	"time"
 
-	"chenze-faka/internal/config"
 	"chenze-faka/internal/model"
-	"chenze-faka/internal/repository"
+	"chenze-faka/internal/pkg/database"
+	"chenze-faka/internal/pkg/utils"
+
+	"gorm.io/gorm"
 )
 
-type OrderService struct {
-	orderRepo   *repository.OrderRepository
-	productRepo *repository.ProductRepository
-	cardRepo    *repository.CardRepository
-	payConfig   config.PayConfig
-}
+type OrderService struct{}
 
-func NewOrderService(payConfig config.PayConfig) *OrderService {
-	return &OrderService{
-		orderRepo:   repository.NewOrderRepository(),
-		productRepo: repository.NewProductRepository(),
-		cardRepo:    repository.NewCardRepository(),
-		payConfig:   payConfig,
-	}
+func NewOrderService() *OrderService {
+	return &OrderService{}
 }
 
 type CreateOrderRequest struct {
-	ProductID uint   `json:"product_id"`
-	Quantity  int    `json:"quantity"`
-	Contact   string `json:"contact"`
+	ProductID uint   `json:"product_id" binding:"required"`
+	Quantity  int    `json:"quantity" binding:"required"`
+	Contact   string `json:"contact" binding:"required"`
 	Contact2  string `json:"contact2"`
-	PayMethod string `json:"pay_method"`
+	PayMethod string `json:"pay_method" binding:"required"`
 }
 
-type CreateOrderResponse struct {
+type CreateOrderResult struct {
 	OrderNo  string  `json:"order_no"`
 	PayURL   string  `json:"pay_url"`
 	Amount   float64 `json:"amount"`
 	ExpireAt string  `json:"expire_at"`
 }
 
-type QueryOrderResponse struct {
-	OrderNo  string   `json:"order_no"`
-	Status   int      `json:"status"`
-	StatusText string `json:"status_text"`
-	Quantity int      `json:"quantity"`
-	Amount   float64  `json:"amount"`
-	Contact  string   `json:"contact"`
-	Cards    []string `json:"cards,omitempty"`
-	PayAt    string   `json:"pay_at,omitempty"`
-	CreatedAt string  `json:"created_at"`
+type OrderListResult struct {
+	Orders []model.Order `json:"orders"`
+	Total  int64         `json:"total"`
+	Page   int           `json:"page"`
+	PageSize int          `json:"page_size"`
 }
 
-func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*CreateOrderResponse, error) {
+func (s *OrderService) CreateOrder(req *CreateOrderRequest, payConfig model.PayConfig) (*CreateOrderResult, error) {
 	if req.Quantity <= 0 {
-		return nil, errors.New("quantity must be greater than 0")
+		return nil, errors.New("数量必须大于0")
 	}
 	if req.Quantity > 99 {
-		return nil, errors.New("quantity cannot exceed 99")
+		return nil, errors.New("单次购买数量不能超过99")
 	}
 	if req.Contact == "" {
-		return nil, errors.New("contact cannot be empty")
+		return nil, errors.New("联系方式不能为空")
 	}
 	if req.PayMethod != "alipay" && req.PayMethod != "wechat" {
-		return nil, errors.New("invalid pay method")
+		return nil, errors.New("无效的支付方式")
 	}
 
-	product, err := s.productRepo.GetByID(req.ProductID)
-	if err != nil {
-		return nil, errors.New("product not found")
+	if database.DB == nil {
+		return nil, errors.New("数据库未连接")
+	}
+
+	var product model.Product
+	if err := database.DB.First(&product, req.ProductID).Error; err != nil {
+		return nil, errors.New("产品不存在")
 	}
 
 	if product.Stock < req.Quantity {
-		return nil, errors.New("insufficient stock")
+		return nil, errors.New("库存不足")
 	}
 
-	orderNo := generateOrderNo()
+	orderNo := utils.GenerateOrderNo()
 	totalAmount := product.Price * float64(req.Quantity)
 	expireAt := time.Now().Add(30 * time.Minute)
 
@@ -98,13 +84,13 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*CreateOrderRespons
 		ExpiredAt:   expireAt,
 	}
 
-	if err := s.orderRepo.Create(order); err != nil {
+	if err := database.DB.Create(order).Error; err != nil {
 		return nil, err
 	}
 
-	payURL := s.buildPayURL(orderNo, totalAmount, req.PayMethod, product.Name)
+	payURL := utils.BuildPayURL(orderNo, totalAmount, req.PayMethod, product.Name, payConfig)
 
-	return &CreateOrderResponse{
+	return &CreateOrderResult{
 		OrderNo:  orderNo,
 		PayURL:   payURL,
 		Amount:   totalAmount,
@@ -113,9 +99,13 @@ func (s *OrderService) CreateOrder(req *CreateOrderRequest) (*CreateOrderRespons
 }
 
 func (s *OrderService) HandlePaymentCallback(payNo, orderNo string, amount float64) (bool, error) {
-	order, err := s.orderRepo.GetByOrderNo(orderNo)
-	if err != nil {
-		return false, errors.New("order not found")
+	if database.DB == nil {
+		return false, errors.New("数据库未连接")
+	}
+
+	var order model.Order
+	if err := database.DB.Where("order_no = ?", orderNo).First(&order).Error; err != nil {
+		return false, errors.New("订单不存在")
 	}
 
 	if order.Status != model.OrderStatusPending {
@@ -123,15 +113,14 @@ func (s *OrderService) HandlePaymentCallback(payNo, orderNo string, amount float
 	}
 
 	if order.TotalAmount != amount {
-		return false, errors.New("amount mismatch")
+		return false, errors.New("金额不匹配")
 	}
 
-	cards, err := s.cardRepo.GetAvailableCards(order.ProductID, order.Quantity)
-	if err != nil {
-		return false, err
-	}
-	if len(cards) < order.Quantity {
-		return false, errors.New("insufficient cards")
+	var cards []model.Card
+	err := database.DB.Where("product_id = ? AND status = ?", order.ProductID, model.CardStatusUnsold).
+		Limit(order.Quantity).Find(&cards).Error
+	if err != nil || len(cards) < order.Quantity {
+		return false, errors.New("可用卡密不足")
 	}
 
 	now := time.Now()
@@ -139,63 +128,69 @@ func (s *OrderService) HandlePaymentCallback(payNo, orderNo string, amount float
 	order.PayNo = payNo
 	order.PaidAt = &now
 
-	if err := s.orderRepo.Update(order); err != nil {
+	if err := database.DB.Save(&order).Error; err != nil {
 		return false, err
 	}
 
 	for _, card := range cards {
-		s.cardRepo.MarkAsSold(card.ID, orderNo)
+		database.DB.Model(&model.Card{}).Where("id = ?", card.ID).Updates(map[string]interface{}{
+			"status":   model.CardStatusSold,
+			"order_no": orderNo,
+			"sold_at":  now,
+		})
 	}
 
-	s.productRepo.UpdateStock(order.ProductID, -order.Quantity)
+	database.DB.Model(&model.Product{}).Where("id = ?", order.ProductID).
+		UpdateColumn("stock", gorm.Expr("stock - ?", order.Quantity))
 
 	return true, nil
 }
 
-func (s *OrderService) QueryOrder(orderNo, contact string) (*QueryOrderResponse, error) {
-	var order *model.Order
+func (s *OrderService) QueryOrder(orderNo, contact string) (*model.OrderQueryResult, error) {
+	if database.DB == nil {
+		return nil, errors.New("数据库未连接")
+	}
+
+	var order model.Order
 	var err error
 
 	if orderNo != "" {
-		order, err = s.orderRepo.GetByOrderNo(orderNo)
+		err = database.DB.Where("order_no = ?", orderNo).First(&order).Error
 	} else if contact != "" {
-		orders, err := s.orderRepo.GetByContact(contact)
-		if err != nil || len(orders) == 0 {
-			return nil, errors.New("order not found")
-		}
-		order = orders[0]
+		err = database.DB.Where("contact = ?", contact).Order("id DESC").First(&order).Error
 	} else {
-		return nil, errors.New("order number or contact cannot be empty")
+		return nil, errors.New("订单号或联系方式不能为空")
 	}
 
 	if err != nil {
-		return nil, errors.New("order not found")
+		return nil, errors.New("订单不存在")
 	}
 
-	response := &QueryOrderResponse{
-		OrderNo:   order.OrderNo,
-		Status:    order.Status,
-		StatusText: getStatusText(order.Status),
-		Quantity:  order.Quantity,
-		Amount:    order.TotalAmount,
-		Contact:   order.Contact,
-		CreatedAt: order.CreatedAt.Format("2006-01-02 15:04:05"),
+	result := &model.OrderQueryResult{
+		OrderNo:    order.OrderNo,
+		Status:     order.Status,
+		StatusText: model.OrderStatusText(order.Status),
+		Quantity:   order.Quantity,
+		Amount:     order.TotalAmount,
+		Contact:    order.Contact,
+		CreatedAt:  order.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 
 	if order.Status == model.OrderStatusComplete {
-		cards, _, _ := s.cardRepo.List(1, order.Quantity, order.ProductID, model.CardStatusSold)
-		for _, card := range cards {
-			if card.OrderNo == order.OrderNo {
-				response.Cards = append(response.Cards, card.CardNo)
-			}
+		var cards []model.Card
+		database.DB.Where("order_no = ?", order.OrderNo).Find(&cards)
+		for _, c := range cards {
+			result.Cards = append(result.Cards, c.CardNo)
 		}
-		response.PayAt = order.PaidAt.Format("2006-01-02 15:04:05")
+		if order.PaidAt != nil {
+			result.PaidAt = order.PaidAt.Format("2006-01-02 15:04:05")
+		}
 	}
 
-	return response, nil
+	return result, nil
 }
 
-func (s *OrderService) List(page, pageSize, status int, keyword string) ([]model.Order, int64, error) {
+func (s *OrderService) List(page, pageSize, status int, keyword string) (*OrderListResult, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -203,129 +198,55 @@ func (s *OrderService) List(page, pageSize, status int, keyword string) ([]model
 		pageSize = 10
 	}
 
-	if status < 0 {
-		status = -1
+	if database.DB == nil {
+		return &OrderListResult{Orders: []model.Order{}, Total: 0, Page: page, PageSize: pageSize}, nil
 	}
 
-	return s.orderRepo.List(page, pageSize, status, keyword)
+	var orders []model.Order
+	var total int64
+
+	query := database.DB.Model(&model.Order{})
+	if status >= 0 {
+		query = query.Where("status = ?", status)
+	}
+	if keyword != "" {
+		query = query.Where("order_no LIKE ? OR contact LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	offset := (page - 1) * pageSize
+	if err := query.Order("id DESC").Offset(offset).Limit(pageSize).Find(&orders).Error; err != nil {
+		return nil, err
+	}
+
+	return &OrderListResult{
+		Orders:   orders,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+func (s *OrderService) VerifyNotify(params map[string]string, payKey string) bool {
+	return utils.VerifyPaySign(params, payKey)
 }
 
 func (s *OrderService) AutoCloseExpiredOrders() error {
-	orders, err := s.orderRepo.GetExpiredOrders()
-	if err != nil {
+	if database.DB == nil {
+		return nil
+	}
+
+	var orders []*model.Order
+	if err := database.DB.Where("status = ? AND expired_at < ?", model.OrderStatusPending, time.Now()).Find(&orders).Error; err != nil {
 		return err
 	}
 
 	for _, order := range orders {
 		order.Status = model.OrderStatusCancel
-		s.orderRepo.Update(order)
+		database.DB.Save(order)
 	}
-
 	return nil
-}
-
-func (s *OrderService) buildPayURL(orderNo string, amount float64, payMethod string, productName string) string {
-	if s.payConfig.URL == "" || s.payConfig.Merchant == "" || s.payConfig.Key == "" {
-		return ""
-	}
-
-	params := map[string]string{
-		"pid":          s.payConfig.Merchant,
-		"type":         payMethod,
-		"out_trade_no": orderNo,
-		"notify_url":   "/api/pay/notify",
-		"return_url":   "/api/pay/return",
-		"name":         productName,
-		"money":        fmt.Sprintf("%.2f", amount),
-	}
-
-	keys := make([]string, 0, len(params))
-	for k := range params {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var parts []string
-	for _, k := range keys {
-		parts = append(parts, k+"="+params[k])
-	}
-
-	signStr := strings.Join(parts, "&") + "&key=" + s.payConfig.Key
-	sign := md5Sum(signStr)
-	params["sign"] = sign
-	params["sign_type"] = "MD5"
-
-	var queryParts []string
-	for k, v := range params {
-		queryParts = append(queryParts, k+"="+v)
-	}
-
-	return s.payConfig.URL + "/submit.php?" + strings.Join(queryParts, "&")
-}
-
-func generateOrderNo() string {
-	now := time.Now()
-	return fmt.Sprintf("CZ%d%06d", now.Format("20060102150405"), now.Nanosecond()/1000)
-}
-
-func getStatusText(status int) string {
-	switch status {
-	case model.OrderStatusPending:
-		return "pending"
-	case model.OrderStatusPaid:
-		return "paid"
-	case model.OrderStatusComplete:
-		return "completed"
-	case model.OrderStatusCancel:
-		return "cancelled"
-	default:
-		return "unknown"
-	}
-}
-
-func md5Sum(s string) string {
-	hash := md5.Sum([]byte(s))
-	return hex.EncodeToString(hash[:])
-}
-
-func (s *OrderService) verifySign(params map[string]string) bool {
-	if s.payConfig.Key == "" {
-		return false
-	}
-
-	sign := params["sign"]
-	signType := params["sign_type"]
-
-	cleaned := make(map[string]string)
-	for k, v := range params {
-		if k == "sign" || k == "sign_type" {
-			continue
-		}
-		cleaned[k] = v
-	}
-
-	keys := make([]string, 0, len(cleaned))
-	for k := range cleaned {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var parts []string
-	for _, k := range keys {
-		if cleaned[k] != "" {
-			parts = append(parts, k+"="+cleaned[k])
-		}
-	}
-
-	signStr := strings.Join(parts, "&") + "&key=" + s.payConfig.Key
-	calcSign := md5Sum(signStr)
-
-	if signType == "MD5" {
-		return sign == calcSign
-	}
-	return false
-}
-
-func (s *OrderService) VerifyNotify(params map[string]string) bool {
-	return s.verifySign(params)
 }

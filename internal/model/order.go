@@ -36,3 +36,30 @@ const (
 func (Order) TableName() string {
 	return "orders"
 }
+
+type OrderQueryResult struct {
+	OrderNo    string   `json:"order_no"`
+	Status     int      `json:"status"`
+	StatusText string   `json:"status_text"`
+	Quantity   int      `json:"quantity"`
+	Amount     float64  `json:"amount"`
+	Contact    string   `json:"contact"`
+	Cards      []string `json:"cards,omitempty"`
+	PaidAt     string   `json:"paid_at,omitempty"`
+	CreatedAt  string   `json:"created_at"`
+}
+
+func OrderStatusText(status int) string {
+	switch status {
+	case OrderStatusPending:
+		return "待支付"
+	case OrderStatusPaid:
+		return "已支付"
+	case OrderStatusComplete:
+		return "已完成"
+	case OrderStatusCancel:
+		return "已取消"
+	default:
+		return "未知"
+	}
+}

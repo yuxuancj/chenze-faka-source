@@ -5,9 +5,13 @@ dist/
 *.log
 .vite/
 
-# 后端
-chenze_faka
+# 后端 - 排除所有二进制文件
+chenze-faka
 chenze-faka-new
+chenze_faka
+chenze-faka-linux-amd64
+chenze-faka-darwin-amd64
+chenze-faka-windows-amd64.exe
 web/
 install.lock
 config.yaml
@@ -15,6 +19,8 @@ config.yaml
 *.test
 *.db
 uploads/
+release/
+server.log
 
 # 系统
 .DS_Store
@@ -22,3 +28,4 @@ Thumbs.db
 *.swp
 license.secret
 license.cache
+data.db
