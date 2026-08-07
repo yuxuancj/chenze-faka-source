@@ -31,16 +31,16 @@ type DashboardStats struct {
 }
 
 type TopProduct struct {
-	ID       uint    `json:"id"`
-	Name     string  `json:"name"`
-	SoldQty  int64   `json:"sold_qty"`
-	Revenue  float64 `json:"revenue"`
+	ID       uint    `json:"id" gorm:"column:product_id"`
+	Name     string  `json:"name" gorm:"column:product_name"`
+	SoldQty  int64   `json:"sold_qty" gorm:"column:sold_qty"`
+	Revenue  float64 `json:"revenue" gorm:"column:revenue"`
 }
 
 type PayStat struct {
-	Method  string  `json:"method"`
-	Count   int64   `json:"count"`
-	Amount  float64 `json:"amount"`
+	Method  string  `json:"method" gorm:"column:pay_method"`
+	Count   int64   `json:"count" gorm:"column:count"`
+	Amount  float64 `json:"amount" gorm:"column:amount"`
 }
 
 type TrendPoint struct {
@@ -67,24 +67,26 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		Scan(&totalRev)
 	stats.TotalRevenue = totalRev.Total
 
-	today := time.Now().Format("2006-01-02")
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayEnd := todayStart.Add(24 * time.Hour)
 	database.DB.Model(&model.Order{}).
-		Where("DATE(created_at) = ? AND status >= ?", today, model.OrderStatusPaid).
+		Where("created_at >= ? AND created_at < ? AND status >= ?", todayStart, todayEnd, model.OrderStatusPaid).
 		Count(&stats.TodayOrders)
 	var todayRev struct{ Total float64 }
 	database.DB.Model(&model.Order{}).
-		Where("DATE(created_at) = ? AND status >= ?", today, model.OrderStatusPaid).
+		Where("created_at >= ? AND created_at < ? AND status >= ?", todayStart, todayEnd, model.OrderStatusPaid).
 		Select("COALESCE(SUM(total_amount), 0) as total").
 		Scan(&todayRev)
 	stats.TodayRevenue = todayRev.Total
 
-	monthStart := time.Now().Format("2006-01-01")
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	database.DB.Model(&model.Order{}).
-		Where("DATE(created_at) >= ? AND status >= ?", monthStart, model.OrderStatusPaid).
+		Where("created_at >= ? AND status >= ?", monthStart, model.OrderStatusPaid).
 		Count(&stats.MonthOrders)
 	var monthRev struct{ Total float64 }
 	database.DB.Model(&model.Order{}).
-		Where("DATE(created_at) >= ? AND status >= ?", monthStart, model.OrderStatusPaid).
+		Where("created_at >= ? AND status >= ?", monthStart, model.OrderStatusPaid).
 		Select("COALESCE(SUM(total_amount), 0) as total").
 		Scan(&monthRev)
 	stats.MonthRevenue = monthRev.Total
@@ -124,13 +126,15 @@ func (s *DashboardService) getSalesTrend() []TrendPoint {
 	now := time.Now()
 	for i := 6; i >= 0; i-- {
 		date := now.AddDate(0, 0, -i)
-		dateStr := date.Format("2006-01-02")
+		dateStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, now.Location())
+		dateEnd := dateStart.Add(24 * time.Hour)
+		dateStr := dateStart.Format("2006-01-02")
 		var p TrendPoint
-		p.Date = dateStr
 		database.DB.Model(&model.Order{}).
-			Where("DATE(created_at) = ? AND status >= ?", dateStr, model.OrderStatusPaid).
+			Where("created_at >= ? AND created_at < ? AND status >= ?", dateStart, dateEnd, model.OrderStatusPaid).
 			Select("COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue").
 			Scan(&p)
+		p.Date = dateStr
 		points = append(points, p)
 	}
 	return points

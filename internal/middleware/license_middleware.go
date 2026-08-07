@@ -62,8 +62,11 @@ func isLicensePublicPath(path string) bool {
 	}
 
 	for _, p := range publicPaths {
-		if p == "/" && path == "/" {
-			return true
+		if p == "/" {
+			if path == "/" {
+				return true
+			}
+			continue
 		}
 		if strings.HasPrefix(path, p) {
 			return true
