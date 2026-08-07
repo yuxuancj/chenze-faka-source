@@ -139,12 +139,23 @@ type InstallRequest struct {
 	Pay        model.PayConfig    `json:"pay"`
 	Username   string              `json:"username"`
 	Password   string              `json:"password"`
+	Force      bool                `json:"force"`
+	Skip       bool                `json:"skip"`
 }
 
 func (h *AuthController) Install(c *gin.Context) {
 	var req InstallRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "无效的请求参数")
+		return
+	}
+
+	if req.Skip {
+		if err := os.WriteFile("install.lock", []byte("skipped"), 0644); err != nil {
+			response.Fail(c, "创建安装锁失败")
+			return
+		}
+		response.Success(c, gin.H{"message": "跳过安装成功"})
 		return
 	}
 
@@ -178,6 +189,13 @@ func (h *AuthController) Install(c *gin.Context) {
 		return
 	}
 
+	if req.Force {
+		if err := database.WipeTables(); err != nil {
+			response.Fail(c, "清空数据表失败: "+err.Error())
+			return
+		}
+	}
+
 	if err := database.AutoMigrate(); err != nil {
 		response.Fail(c, "数据库迁移失败: "+err.Error())
 		return
@@ -185,7 +203,7 @@ func (h *AuthController) Install(c *gin.Context) {
 
 	var count int64
 	database.DB.Model(&model.User{}).Count(&count)
-	if count > 0 {
+	if count > 0 && !req.Force {
 		response.Fail(c, "系统已安装,请直接登录")
 		return
 	}
@@ -274,7 +292,7 @@ func (h *AuthController) CheckEnv(c *gin.Context) {
 	resp := EnvCheckResponse{
 		OS:           runtime.GOOS,
 		GOVersion:    runtime.Version(),
-		MySQLStatus:  "未安装",
+		MySQLStatus:  "not-installed",
 		MySQLVersion: "未安装",
 		Memory:       "2GB+",
 	}
@@ -282,6 +300,8 @@ func (h *AuthController) CheckEnv(c *gin.Context) {
 	dsns := []string{
 		"root:@tcp(localhost:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
 		"root:@tcp(127.0.0.1:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
+		"root:root@tcp(localhost:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
+		"root:root@tcp(127.0.0.1:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
 	}
 
 	for _, dsn := range dsns {
@@ -297,20 +317,38 @@ func (h *AuthController) CheckEnv(c *gin.Context) {
 			sqlDB.Close()
 			continue
 		}
-		defer sqlDB.Close()
 
 		var version string
 		row := sqlDB.QueryRow("SELECT VERSION()")
 		if err := row.Scan(&version); err != nil {
 			version = "unknown"
 		}
+		sqlDB.Close()
 
 		resp.MySQLVersion = version
-		resp.MySQLStatus = checkMysqlVersionStatus(version)
+		resp.MySQLStatus = checkMysqlVersionStatusEn(version)
+		response.Success(c, resp)
 		return
 	}
 
 	response.Success(c, resp)
+}
+
+func checkMysqlVersionStatusEn(version string) string {
+	match := mysqlVersionRegexp.FindStringSubmatch(version)
+	if match == nil {
+		return "error"
+	}
+	var major, minor int
+	fmt.Sscanf(match[1], "%d", &major)
+	fmt.Sscanf(match[2], "%d", &minor)
+	if major >= 8 {
+		return "normal"
+	}
+	if major == 5 && minor >= 7 {
+		return "normal"
+	}
+	return "error"
 }
 
 func checkMysqlVersionStatus(version string) string {

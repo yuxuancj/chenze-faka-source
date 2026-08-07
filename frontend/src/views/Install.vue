@@ -58,7 +58,7 @@
               <span class="env-check-label">{{ item.label }}</span>
               <span class="env-check-value">{{ item.value }}</span>
               <a-tag :color="getTagColor(item.status)" size="small">
-                {{ item.status }}
+                {{ getStatusText(item.status) }}
               </a-tag>
             </div>
           </div>
@@ -250,28 +250,41 @@ const mysqlVersion = ref('')
 const envChecked = ref(false)
 
 const checkMysqlVersion = (version) => {
-  if (!version) return { status: '异常', text: '未知版本' }
+  if (!version) return { status: 'error', text: '未知版本' }
   const match = version.match(/^(\d+)\.(\d+)/)
-  if (!match) return { status: '异常', text: version }
+  if (!match) return { status: 'error', text: version }
   const major = parseInt(match[1], 10)
   const minor = parseInt(match[2], 10)
-  if (major >= 8) return { status: '正常', text: version }
-  if (major === 5 && minor >= 7) return { status: '正常', text: version }
-  return { status: '异常', text: version }
+  if (major >= 8) return { status: 'normal', text: version }
+  if (major === 5 && minor >= 7) return { status: 'normal', text: version }
+  return { status: 'error', text: version }
 }
 
 const envItems = computed(() => [
-  { label: '操作系统', value: 'Linux', status: '正常' },
-  { label: 'Go版本', value: '1.21+', status: '正常' },
+  { label: '操作系统', value: 'Linux', status: 'normal' },
+  { label: 'Go版本', value: '1.21+', status: 'normal' },
   { label: 'MySQL', value: mysqlVersion.value || '待检测', status: mysqlStatus.value },
-  { label: '内存', value: '2GB+', status: '正常' }
+  { label: '内存', value: '2GB+', status: 'normal' }
 ])
 
 const getTagColor = (status) => {
-  if (status === '正常') return 'green'
+  if (status === 'normal' || status === '正常') return 'green'
   if (status === '检测中') return 'orange'
-  if (status === '未安装') return 'gray'
+  if (status === 'not-installed' || status === '未安装') return 'gray'
   return 'red'
+}
+
+const getStatusText = (status) => {
+  const map = {
+    'normal': '正常',
+    'error': '异常（建议升级至5.7+）',
+    'not-installed': '未安装',
+    '检测中': '检测中',
+    '正常': '正常',
+    '异常': '异常',
+    '未安装': '未安装'
+  }
+  return map[status] || status
 }
 
 const runEnvCheck = async () => {
@@ -282,17 +295,17 @@ const runEnvCheck = async () => {
     const res = await api.checkEnv()
     if (res.code === 0 && res.data) {
       const v = res.data.mysql_version || ''
-      const s = res.data.mysql_status || '异常'
-      if (s === '正常') {
+      const s = res.data.mysql_status || 'not-installed'
+      if (s === 'normal') {
         const result = checkMysqlVersion(v)
         mysqlVersion.value = result.text
-        mysqlStatus.value = result.status
-      } else if (v === '未安装') {
+        mysqlStatus.value = '正常'
+      } else if (s === 'not-installed' || v === '未安装') {
         mysqlVersion.value = '未安装'
         mysqlStatus.value = '未安装'
       } else {
         mysqlVersion.value = v || '未知版本'
-        mysqlStatus.value = s || '异常'
+        mysqlStatus.value = '异常'
       }
     } else {
       mysqlVersion.value = '未安装'
@@ -426,6 +439,19 @@ const handleDataDialogAction = (action) => {
   }
 }
 
+const handleSkipInstall = async () => {
+  try {
+    localStorage.setItem('site_config', JSON.stringify({ site_name: '晨泽发卡' }))
+    await fetch('/api/install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skip: true })
+    })
+  } catch {}
+  Message.success('已跳过安装，使用现有数据')
+  router.push('/login')
+}
+
 const verifyLicense = async () => {
   if (!licenseForm.license_key) {
     Message.warning('请输入授权码')
@@ -465,6 +491,20 @@ const nextStep = async () => {
   if (currentStep.value === 2 && !dbTestSuccess.value) {
     Message.warning('请先测试数据库连接成功')
     return
+  }
+
+  if (currentStep.value === 2 && pendingDataAction.value === 'skip') {
+    try {
+      await api.install({ skip: true })
+      Message.success('跳过安装成功，正在跳转...')
+      setTimeout(() => {
+        router.push('/login')
+      }, 1500)
+      return
+    } catch (e) {
+      Message.error(e.message || '操作失败')
+      return
+    }
   }
 
   if (currentStep.value === 3 && !licenseVerified.value) {
@@ -515,7 +555,8 @@ const nextStep = async () => {
           notify_url: ''
         },
         username: adminForm.username,
-        password: adminForm.password
+        password: adminForm.password,
+        force: pendingDataAction.value === 'overwrite'
       })
       Message.success('安装成功')
       currentStep.value = 5

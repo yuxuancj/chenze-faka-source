@@ -7,6 +7,7 @@
       :collapsed-width="60"
       :width="240"
       class="admin-sider"
+      :class="{ 'sider-open': !collapsed, 'sider-closed-mobile': isMobile && collapsed }"
     >
       <div class="logo">
         <iconify-icon icon="arco:shop" :size="24" />
@@ -87,9 +88,20 @@
       </a-menu>
     </a-layout-sider>
 
+    <div v-if="isMobile && !collapsed" class="sider-mask" @click="collapsed = true"></div>
+
     <a-layout>
       <a-layout-header class="admin-header">
         <div class="header-left">
+          <a-button
+            v-if="isMobile"
+            type="text"
+            size="small"
+            class="menu-toggle-btn"
+            @click="collapsed = !collapsed"
+          >
+            <iconify-icon :icon="collapsed ? 'arco:menu' : 'arco:close'" :size="20" />
+          </a-button>
           <span class="header-title">{{ currentTitle }}</span>
         </div>
         <div class="header-right">
@@ -128,6 +140,7 @@ const router = useRouter()
 
 const collapsed = ref(false)
 const openKeys = ref([])
+const isMobile = ref(false)
 
 const siteName = computed(() => {
   try {
@@ -179,7 +192,7 @@ const handleMenuItemClick = (key) => {
   }
   if (path && path !== route.path) {
     router.push(path).then(() => {
-      if (window.innerWidth < 992) {
+      if (isMobile.value) {
         collapsed.value = true
       }
     }).catch(() => {})
@@ -199,13 +212,14 @@ const handleLogout = () => {
 }
 
 const checkMobile = () => {
-  if (window.innerWidth < 992) {
+  isMobile.value = window.innerWidth < 992
+  if (isMobile.value) {
     collapsed.value = true
   }
 }
 
 watch(() => route.path, (path) => {
-  if (window.innerWidth < 992) {
+  if (isMobile.value) {
     collapsed.value = true
   }
   if (['/admin/categories', '/admin/products'].includes(path)) {
@@ -243,6 +257,8 @@ onUnmounted(() => {
 .admin-sider {
   background: var(--color-bg-2);
   border-right: 1px solid var(--color-border-2);
+  transition: transform 0.2s ease;
+  z-index: 100;
 }
 
 .logo {
@@ -311,6 +327,11 @@ onUnmounted(() => {
   color: var(--color-text-1);
 }
 
+.menu-toggle-btn {
+  display: none;
+  color: var(--color-text-1);
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -346,6 +367,7 @@ onUnmounted(() => {
 .admin-content {
   background: var(--color-fill-2);
   padding: 0;
+  overflow: auto;
 }
 
 .admin-content :deep(> div) {
@@ -353,12 +375,51 @@ onUnmounted(() => {
   min-height: 100%;
 }
 
+.sider-mask {
+  display: none;
+}
+
 @media (max-width: 992px) {
+  .menu-toggle-btn {
+    display: flex;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .admin-sider {
+    position: fixed !important;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 200;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .admin-sider.sider-closed-mobile {
+    transform: translateX(-100%);
+  }
+
+  .admin-sider.sider-open {
+    transform: translateX(0);
+  }
+
+  .sider-mask {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 150;
+    transition: opacity 0.2s;
+  }
+
   .admin-content :deep(> div) {
     padding: 12px;
   }
-  .user-name {
-    display: none;
+
+  .admin-header {
+    padding: 0 12px;
   }
 }
 </style>

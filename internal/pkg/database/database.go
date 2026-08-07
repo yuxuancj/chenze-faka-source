@@ -101,6 +101,29 @@ func IsAvailable() bool {
 	return DB != nil
 }
 
+func WipeTables() error {
+	if DB == nil {
+		return nil
+	}
+
+	migrator := DB.Migrator()
+	tables := []string{}
+
+	if err := DB.Raw("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()").Scan(&tables).Error; err != nil {
+		return nil
+	}
+
+	for _, table := range tables {
+		if migrator.HasTable(table) {
+			if err := migrator.DropTable(table); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 type TestResult struct {
 	Version    string `json:"version"`
 	HasData    bool   `json:"has_data"`

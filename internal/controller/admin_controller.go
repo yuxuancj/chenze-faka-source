@@ -598,23 +598,45 @@ func (h *AdminController) NodePing(c *gin.Context) {
 
 func (h *AdminController) GetSettings(c *gin.Context) {
 	response.Success(c, gin.H{
-		"site_name":  c.GetString("site_name"),
-		"site_desc":  c.GetString("site_desc"),
-		"pay_method": c.GetString("pay_method"),
+		"site_name":        c.GetString("site_name"),
+		"site_logo":        c.GetString("site_logo"),
+		"site_description": c.GetString("site_desc"),
+		"alipay_enabled":   c.GetBool("alipay_enabled"),
+		"alipay_app_id":    c.GetString("alipay_app_id"),
+		"alipay_private_key": c.GetString("alipay_private_key"),
+		"wechat_enabled":   c.GetBool("wechat_enabled"),
+		"wechat_app_id":    c.GetString("wechat_app_id"),
+		"wechat_mch_id":    c.GetString("wechat_mch_id"),
+		"order_expire":     c.GetInt("order_expire"),
+		"card_prefix":      c.GetString("card_prefix"),
+		"maintenance":      c.GetBool("maintenance"),
 	})
 }
 
 func (h *AdminController) UpdateSettings(c *gin.Context) {
 	var req struct {
-		SiteName  string `json:"site_name"`
-		SiteDesc  string `json:"site_desc"`
-		PayMethod string `json:"pay_method"`
+		SiteName        string `json:"site_name"`
+		SiteLogo        string `json:"site_logo"`
+		SiteDescription string `json:"site_description"`
+		AlipayEnabled   bool   `json:"alipay_enabled"`
+		AlipayAppID     string `json:"alipay_app_id"`
+		AlipayPrivateKey string `json:"alipay_private_key"`
+		WechatEnabled   bool   `json:"wechat_enabled"`
+		WechatAppID     string `json:"wechat_app_id"`
+		WechatMchID     string `json:"wechat_mch_id"`
+		OrderExpire     int    `json:"order_expire"`
+		CardPrefix      string `json:"card_prefix"`
+		Maintenance     bool   `json:"maintenance"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "无效的请求参数")
 		return
 	}
-	response.Success(c, gin.H{"updated": true})
+
+	response.Success(c, gin.H{
+		"updated": true,
+		"data":    req,
+	})
 }
 
 // ===== Upgrade =====

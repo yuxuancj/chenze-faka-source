@@ -98,6 +98,8 @@ export const api = {
 
   adminGetSettings: () => request.get('/api/admin/settings'),
   adminUpdateSettings: (data) => request.put('/api/admin/settings', data),
+  getSiteConfig: () => request.get('/api/admin/settings'),
+  updateSiteConfig: (data) => request.put('/api/admin/settings', data),
 
   adminGetVersion: () => request.get('/api/admin/upgrade/version'),
   adminCheckUpdate: () => request.get('/api/admin/upgrade/check'),
