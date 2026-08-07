@@ -19,10 +19,9 @@
         :selected-keys="selectedKeys"
         :open-keys="openKeys"
         @open-keys-change="handleOpenChange"
-        @menu-item-click="handleMenuItemClick"
         class="admin-menu"
       >
-        <a-menu-item key="/admin/dashboard">
+        <a-menu-item key="/admin/dashboard" @click="navigate('/admin/dashboard')">
           <iconify-icon icon="arco:dashboard" :size="18" />
           <template #title>仪表盘</template>
         </a-menu-item>
@@ -32,11 +31,11 @@
             <iconify-icon icon="arco:apps" :size="18" />
             <span>商品与运营</span>
           </template>
-          <a-menu-item key="/admin/categories">
+          <a-menu-item key="/admin/categories" @click="navigate('/admin/categories')">
             <iconify-icon icon="arco:menu" :size="16" />
             <template #title>商品分类</template>
           </a-menu-item>
-          <a-menu-item key="/admin/products">
+          <a-menu-item key="/admin/products" @click="navigate('/admin/products')">
             <iconify-icon icon="arco:apps" :size="16" />
             <template #title>商品管理</template>
           </a-menu-item>
@@ -47,11 +46,11 @@
             <iconify-icon icon="arco:file" :size="18" />
             <span>卡密与订单</span>
           </template>
-          <a-menu-item key="/admin/cards">
+          <a-menu-item key="/admin/cards" @click="navigate('/admin/cards')">
             <iconify-icon icon="arco:file" :size="16" />
             <template #title>卡密管理</template>
           </a-menu-item>
-          <a-menu-item key="/admin/orders">
+          <a-menu-item key="/admin/orders" @click="navigate('/admin/orders')">
             <iconify-icon icon="arco:icon-list" :size="16" />
             <template #title>订单管理</template>
           </a-menu-item>
@@ -62,26 +61,26 @@
             <iconify-icon icon="arco:pay-circle" :size="18" />
             <span>支付与通知</span>
           </template>
-          <a-menu-item key="/admin/payments">
+          <a-menu-item key="/admin/payments" @click="navigate('/admin/payments')">
             <iconify-icon icon="arco:pay-circle" :size="16" />
             <template #title>支付接口</template>
           </a-menu-item>
-          <a-menu-item key="/admin/emails">
+          <a-menu-item key="/admin/emails" @click="navigate('/admin/emails')">
             <iconify-icon icon="arco:mail" :size="16" />
             <template #title>邮件系统</template>
           </a-menu-item>
-          <a-menu-item key="/admin/nodes">
+          <a-menu-item key="/admin/nodes" @click="navigate('/admin/nodes')">
             <iconify-icon icon="arco:cloud" :size="16" />
             <template #title>节点管理</template>
           </a-menu-item>
         </a-sub-menu>
 
-        <a-menu-item key="/admin/logs">
+        <a-menu-item key="/admin/logs" @click="navigate('/admin/logs')">
           <iconify-icon icon="arco:file-one" :size="18" />
           <template #title>日志系统</template>
         </a-menu-item>
 
-        <a-menu-item key="/admin/settings">
+        <a-menu-item key="/admin/settings" @click="navigate('/admin/settings')">
           <iconify-icon icon="arco:settings" :size="18" />
           <template #title>系统设置</template>
         </a-menu-item>
@@ -182,15 +181,9 @@ const handleOpenChange = (keys) => {
   openKeys.value = keys
 }
 
-const handleMenuItemClick = (key) => {
-  if (!key) return
-  let path = ''
-  if (Array.isArray(key)) {
-    path = key.find(k => typeof k === 'string' && k.startsWith('/')) || ''
-  } else if (typeof key === 'string') {
-    path = key
-  }
-  if (path && path !== route.path) {
+const navigate = (path) => {
+  if (!path) return
+  if (path !== route.path) {
     router.push(path).then(() => {
       if (isMobile.value) {
         collapsed.value = true

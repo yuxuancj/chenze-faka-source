@@ -29,15 +29,17 @@ type AuthController struct {
 	expireHours  int
 	siteName     string
 	licenseCfg   *model.LicenseConfig
+	dbCfg        *model.DatabaseConfig
 }
 
-func NewAuthController(jwtSecret string, expireHours int, siteName string, licenseCfg *model.LicenseConfig) *AuthController {
+func NewAuthController(jwtSecret string, expireHours int, siteName string, licenseCfg *model.LicenseConfig, dbCfg *model.DatabaseConfig) *AuthController {
 	return &AuthController{
 		authService: service.NewAuthService(),
 		jwtSecret:   jwtSecret,
 		expireHours: expireHours,
 		siteName:    siteName,
 		licenseCfg:  licenseCfg,
+		dbCfg:       dbCfg,
 	}
 }
 
@@ -297,40 +299,56 @@ func (h *AuthController) CheckEnv(c *gin.Context) {
 		Memory:       "2GB+",
 	}
 
-	dsns := []string{
-		"root:@tcp(localhost:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
-		"root:@tcp(127.0.0.1:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
-		"root:root@tcp(localhost:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
-		"root:root@tcp(127.0.0.1:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
-	}
-
-	for _, dsn := range dsns {
-		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-		if err != nil {
-			continue
-		}
-		sqlDB, err := db.DB()
-		if err != nil {
-			continue
-		}
-		if err := sqlDB.Ping(); err != nil {
-			sqlDB.Close()
-			continue
-		}
-
-		var version string
-		row := sqlDB.QueryRow("SELECT VERSION()")
-		if err := row.Scan(&version); err != nil {
-			version = "unknown"
-		}
-		sqlDB.Close()
-
-		resp.MySQLVersion = version
-		resp.MySQLStatus = checkMysqlVersionStatusEn(version)
+	cfg := h.dbCfg
+	if cfg == nil {
 		response.Success(c, resp)
 		return
 	}
 
+	if cfg.Driver == "sqlite" {
+		resp.MySQLStatus = "normal"
+		resp.MySQLVersion = "SQLite 3.x"
+		response.Success(c, resp)
+		return
+	}
+
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 3306
+	}
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
+		cfg.User, cfg.Password, host, port)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		response.Success(c, resp)
+		return
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		response.Success(c, resp)
+		return
+	}
+	defer sqlDB.Close()
+
+	if err := sqlDB.Ping(); err != nil {
+		response.Success(c, resp)
+		return
+	}
+
+	var version string
+	row := sqlDB.QueryRow("SELECT VERSION()")
+	if err := row.Scan(&version); err != nil {
+		version = "unknown"
+	}
+
+	resp.MySQLVersion = version
+	resp.MySQLStatus = checkMysqlVersionStatusEn(version)
 	response.Success(c, resp)
 }
 

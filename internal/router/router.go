@@ -20,7 +20,7 @@ func Setup(cfg *model.Config, licenseSvc *service.LicenseService, webFS embed.FS
 	productCtrl := controller.NewProductController()
 	orderCtrl := controller.NewOrderController(cfg.Pay)
 	cardCtrl := controller.NewCardController()
-	authCtrl := controller.NewAuthController(cfg.JWT.Secret, cfg.JWT.ExpireTime, cfg.System.SiteName, &cfg.License)
+	authCtrl := controller.NewAuthController(cfg.JWT.Secret, cfg.JWT.ExpireTime, cfg.System.SiteName, &cfg.License, &cfg.Database)
 	adminCtrl := controller.NewAdminController(licenseSvc)
 
 	authMw := middleware.NewAuthMiddleware(cfg.JWT.Secret, cfg.JWT.ExpireTime)
