@@ -10,7 +10,7 @@
       :class="{ 'sider-open': !collapsed, 'sider-closed-mobile': isMobile && collapsed }"
     >
       <div class="logo">
-        <iconify-icon icon="arco:shop" :size="24" />
+        <icon-apps />
         <span v-if="!collapsed" class="logo-text">{{ siteName }}</span>
       </div>
 
@@ -22,66 +22,66 @@
         class="admin-menu"
       >
         <a-menu-item key="/admin/dashboard" @click="navigate('/admin/dashboard')">
-          <iconify-icon icon="arco:dashboard" :size="18" />
+          <icon-dashboard />
           <template #title>仪表盘</template>
         </a-menu-item>
 
         <a-sub-menu key="product">
           <template #title>
-            <iconify-icon icon="arco:apps" :size="18" />
+            <icon-apps />
             <span>商品与运营</span>
           </template>
           <a-menu-item key="/admin/categories" @click="navigate('/admin/categories')">
-            <iconify-icon icon="arco:menu" :size="16" />
+            <icon-menu />
             <template #title>商品分类</template>
           </a-menu-item>
           <a-menu-item key="/admin/products" @click="navigate('/admin/products')">
-            <iconify-icon icon="arco:apps" :size="16" />
+            <icon-apps />
             <template #title>商品管理</template>
           </a-menu-item>
         </a-sub-menu>
 
         <a-sub-menu key="order">
           <template #title>
-            <iconify-icon icon="arco:file" :size="18" />
+            <icon-file />
             <span>卡密与订单</span>
           </template>
           <a-menu-item key="/admin/cards" @click="navigate('/admin/cards')">
-            <iconify-icon icon="arco:file" :size="16" />
+            <icon-file />
             <template #title>卡密管理</template>
           </a-menu-item>
           <a-menu-item key="/admin/orders" @click="navigate('/admin/orders')">
-            <iconify-icon icon="arco:icon-list" :size="16" />
+            <icon-list />
             <template #title>订单管理</template>
           </a-menu-item>
         </a-sub-menu>
 
         <a-sub-menu key="pay">
           <template #title>
-            <iconify-icon icon="arco:pay-circle" :size="18" />
+            <icon-alipay-circle />
             <span>支付与通知</span>
           </template>
           <a-menu-item key="/admin/payments" @click="navigate('/admin/payments')">
-            <iconify-icon icon="arco:pay-circle" :size="16" />
+            <icon-alipay-circle />
             <template #title>支付接口</template>
           </a-menu-item>
           <a-menu-item key="/admin/emails" @click="navigate('/admin/emails')">
-            <iconify-icon icon="arco:mail" :size="16" />
+            <icon-email />
             <template #title>邮件系统</template>
           </a-menu-item>
           <a-menu-item key="/admin/nodes" @click="navigate('/admin/nodes')">
-            <iconify-icon icon="arco:cloud" :size="16" />
+            <icon-cloud />
             <template #title>节点管理</template>
           </a-menu-item>
         </a-sub-menu>
 
         <a-menu-item key="/admin/logs" @click="navigate('/admin/logs')">
-          <iconify-icon icon="arco:file-one" :size="18" />
+          <icon-history />
           <template #title>日志系统</template>
         </a-menu-item>
 
         <a-menu-item key="/admin/settings" @click="navigate('/admin/settings')">
-          <iconify-icon icon="arco:settings" :size="18" />
+          <icon-settings />
           <template #title>系统设置</template>
         </a-menu-item>
       </a-menu>
@@ -99,7 +99,8 @@
             class="menu-toggle-btn"
             @click="collapsed = !collapsed"
           >
-            <iconify-icon :icon="collapsed ? 'arco:menu' : 'arco:close'" :size="20" />
+            <icon-menu-unfold v-if="collapsed" />
+            <icon-menu-fold v-else />
           </a-button>
           <span class="header-title">{{ currentTitle }}</span>
         </div>
@@ -111,10 +112,10 @@
             </div>
             <template #content>
               <a-doption @click="handleProfile">
-                <iconify-icon icon="arco:user" :size="14" /> 个人设置
+                <icon-user /> 个人设置
               </a-doption>
               <a-doption @click="handleLogout">
-                <iconify-icon icon="arco:poweroff" :size="14" /> 退出登录
+                <icon-poweroff /> 退出登录
               </a-doption>
             </template>
           </a-dropdown>
@@ -133,6 +134,22 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  IconDashboard,
+  IconApps,
+  IconMenu,
+  IconFile,
+  IconList,
+  IconAlipayCircle,
+  IconEmail,
+  IconCloud,
+  IconHistory,
+  IconSettings,
+  IconUser,
+  IconPoweroff,
+  IconMenuFold,
+  IconMenuUnfold
+} from '@arco-design/web-vue/es/icon'
 
 const route = useRoute()
 const router = useRouter()
