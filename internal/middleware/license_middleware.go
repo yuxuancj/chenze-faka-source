@@ -49,6 +49,7 @@ func isLicensePublicPath(path string) bool {
 		"/install",
 		"/install-page",
 		"/static/",
+		"/assets/",
 		"/api/site/config",
 		"/api/products",
 		"/api/products/on-shelf",
