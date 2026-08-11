@@ -10,7 +10,7 @@
       :class="{ 'sider-open': !collapsed, 'sider-closed-mobile': isMobile && collapsed }"
     >
       <div class="logo">
-        <icon-apps />
+        <IconApps />
         <span v-if="!collapsed" class="logo-text">{{ siteName }}</span>
       </div>
 
@@ -22,66 +22,66 @@
         class="admin-menu"
       >
         <a-menu-item key="/admin/dashboard" @click="navigate('/admin/dashboard')">
-          <icon-dashboard />
+          <IconDashboard />
           <template #title>仪表盘</template>
         </a-menu-item>
 
         <a-sub-menu key="product">
           <template #title>
-            <icon-apps />
+            <IconApps />
             <span>商品与运营</span>
           </template>
           <a-menu-item key="/admin/categories" @click="navigate('/admin/categories')">
-            <icon-menu />
+            <IconMenu />
             <template #title>商品分类</template>
           </a-menu-item>
           <a-menu-item key="/admin/products" @click="navigate('/admin/products')">
-            <icon-apps />
+            <IconApps />
             <template #title>商品管理</template>
           </a-menu-item>
         </a-sub-menu>
 
         <a-sub-menu key="order">
           <template #title>
-            <icon-file />
+            <IconFile />
             <span>卡密与订单</span>
           </template>
           <a-menu-item key="/admin/cards" @click="navigate('/admin/cards')">
-            <icon-file />
+            <IconFile />
             <template #title>卡密管理</template>
           </a-menu-item>
           <a-menu-item key="/admin/orders" @click="navigate('/admin/orders')">
-            <icon-list />
+            <IconList />
             <template #title>订单管理</template>
           </a-menu-item>
         </a-sub-menu>
 
         <a-sub-menu key="pay">
           <template #title>
-            <icon-alipay-circle />
+            <IconAlipayCircle />
             <span>支付与通知</span>
           </template>
           <a-menu-item key="/admin/payments" @click="navigate('/admin/payments')">
-            <icon-alipay-circle />
+            <IconAlipayCircle />
             <template #title>支付接口</template>
           </a-menu-item>
           <a-menu-item key="/admin/emails" @click="navigate('/admin/emails')">
-            <icon-email />
+            <IconEmail />
             <template #title>邮件系统</template>
           </a-menu-item>
           <a-menu-item key="/admin/nodes" @click="navigate('/admin/nodes')">
-            <icon-cloud />
+            <IconCloud />
             <template #title>节点管理</template>
           </a-menu-item>
         </a-sub-menu>
 
         <a-menu-item key="/admin/logs" @click="navigate('/admin/logs')">
-          <icon-history />
+          <IconHistory />
           <template #title>日志系统</template>
         </a-menu-item>
 
         <a-menu-item key="/admin/settings" @click="navigate('/admin/settings')">
-          <icon-settings />
+          <IconSettings />
           <template #title>系统设置</template>
         </a-menu-item>
       </a-menu>
@@ -99,8 +99,8 @@
             class="menu-toggle-btn"
             @click="collapsed = !collapsed"
           >
-            <icon-menu-unfold v-if="collapsed" />
-            <icon-menu-fold v-else />
+            <IconMenuUnfold v-if="collapsed" />
+            <IconMenuFold v-else />
           </a-button>
           <span class="header-title">{{ currentTitle }}</span>
         </div>
@@ -112,10 +112,10 @@
             </div>
             <template #content>
               <a-doption @click="handleProfile">
-                <icon-user /> 个人设置
+                <IconUser /> 个人设置
               </a-doption>
               <a-doption @click="handleLogout">
-                <icon-poweroff /> 退出登录
+                <IconPoweroff /> 退出登录
               </a-doption>
             </template>
           </a-dropdown>
@@ -134,22 +134,20 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  IconDashboard,
-  IconApps,
-  IconMenu,
-  IconFile,
-  IconList,
-  IconAlipayCircle,
-  IconEmail,
-  IconCloud,
-  IconHistory,
-  IconSettings,
-  IconUser,
-  IconPoweroff,
-  IconMenuFold,
-  IconMenuUnfold
-} from '@arco-design/web-vue/es/icon'
+import IconDashboard from '@arco-design/web-vue/es/icon/icon-dashboard/index.js'
+import IconApps from '@arco-design/web-vue/es/icon/icon-apps/index.js'
+import IconMenu from '@arco-design/web-vue/es/icon/icon-menu/index.js'
+import IconFile from '@arco-design/web-vue/es/icon/icon-file/index.js'
+import IconList from '@arco-design/web-vue/es/icon/icon-list/index.js'
+import IconAlipayCircle from '@arco-design/web-vue/es/icon/icon-alipay-circle/index.js'
+import IconEmail from '@arco-design/web-vue/es/icon/icon-email/index.js'
+import IconCloud from '@arco-design/web-vue/es/icon/icon-cloud/index.js'
+import IconHistory from '@arco-design/web-vue/es/icon/icon-history/index.js'
+import IconSettings from '@arco-design/web-vue/es/icon/icon-settings/index.js'
+import IconUser from '@arco-design/web-vue/es/icon/icon-user/index.js'
+import IconPoweroff from '@arco-design/web-vue/es/icon/icon-poweroff/index.js'
+import IconMenuFold from '@arco-design/web-vue/es/icon/icon-menu-fold/index.js'
+import IconMenuUnfold from '@arco-design/web-vue/es/icon/icon-menu-unfold/index.js'
 
 const route = useRoute()
 const router = useRouter()
